@@ -23,7 +23,7 @@ view-%: ${O}/%
 	@./$<
 
 compiled-%: ${O}/%
-	@./$< 2>&1 | llvm-as | llvm-ld - -o $@
+	@./$< 2>&1 | llvm-as | llvm-ld - -o .obj/$@ && .obj/$@
 
 clean:
 	rm -rf ${O}
