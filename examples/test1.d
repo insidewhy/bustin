@@ -37,7 +37,7 @@ int main() {
     LLVMBuildRetVoid(builder);
 
     auto mainFun = LLVMAddFunction(
-        mod, "main", LLVMFunctionType(voidTy, null, 0, false));
+        mod, "main", LLVMFunctionType(intTy, null, 0, false));
     auto mainBlock = LLVMAppendBasicBlock(mainFun, "");
     LLVMPositionBuilderAtEnd(builder, mainBlock);
 
@@ -61,7 +61,7 @@ int main() {
 
     LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
 
-    LLVMBuildRetVoid(builder);
+    LLVMBuildRet(builder, LLVMConstInt(intTy, 0, false));
 
     LLVMDumpModule(mod);
 
