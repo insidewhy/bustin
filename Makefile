@@ -1,6 +1,8 @@
-.PHONY: examples
+.PHONY: capi examples
 
 include mk/flags.mk
+
+capi: capi/core.d
 
 examples: capi/core.d
 	${MAKE} -C examples
