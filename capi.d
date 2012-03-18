@@ -24,6 +24,35 @@ extern (C) {
 
     //////////////////////////////////////////////////////////////////////////
     // external enums
+    enum LLVMAttribute {
+        LLVMZExtAttribute       = 1<<0,
+        LLVMSExtAttribute       = 1<<1,
+        LLVMNoReturnAttribute   = 1<<2,
+        LLVMInRegAttribute      = 1<<3,
+        LLVMStructRetAttribute  = 1<<4,
+        LLVMNoUnwindAttribute   = 1<<5,
+        LLVMNoAliasAttribute    = 1<<6,
+        LLVMByValAttribute      = 1<<7,
+        LLVMNestAttribute       = 1<<8,
+        LLVMReadNoneAttribute   = 1<<9,
+        LLVMReadOnlyAttribute   = 1<<10,
+        LLVMNoInlineAttribute   = 1<<11,
+        LLVMAlwaysInlineAttribute    = 1<<12,
+        LLVMOptimizeForSizeAttribute = 1<<13,
+        LLVMStackProtectAttribute    = 1<<14,
+        LLVMStackProtectReqAttribute = 1<<15,
+        LLVMAlignment = 31<<16,
+        LLVMNoCaptureAttribute  = 1<<21,
+        LLVMNoRedZoneAttribute  = 1<<22,
+        LLVMNoImplicitFloatAttribute = 1<<23,
+        LLVMNakedAttribute      = 1<<24,
+        LLVMInlineHintAttribute = 1<<25,
+        LLVMStackAlignment = 7<<26,
+        LLVMReturnsTwice = 1 << 29,
+        LLVMUWTable = 1 << 30,
+        LLVMNonLazyBind = 1 << 31
+    }
+
     enum LLVMLinkage {
       LLVMExternalLinkage,
       LLVMAvailableExternallyLinkage,
@@ -42,7 +71,7 @@ extern (C) {
       LLVMLinkerPrivateLinkage,
       LLVMLinkerPrivateWeakLinkage,
       LLVMLinkerPrivateWeakDefAutoLinkage
-    };
+    }
 
     enum LLVMOpcode {
       /* Terminator Instructions */
@@ -120,7 +149,7 @@ extern (C) {
       LLVMResume         = 58,
       LLVMLandingPad     = 59,
       LLVMUnwind         = 60
-    };
+    }
 
     //////////////////////////////////////////////////////////////////////////
     // context
@@ -293,6 +322,21 @@ extern (C) {
 
     LLVMLinkage LLVMGetLinkage(LLVMValueRef Global);
     void LLVMSetLinkage(LLVMValueRef Global, LLVMLinkage Linkage);
+
+    //////////////////////////////////////////////////////////////////////////
+    // operations on parameters
+    uint LLVMCountParams(LLVMValueRef Fn);
+    void LLVMGetParams(LLVMValueRef Fn, LLVMValueRef *Params);
+    LLVMValueRef LLVMGetParam(LLVMValueRef Fn, uint Index);
+    LLVMValueRef LLVMGetParamParent(LLVMValueRef Inst);
+    LLVMValueRef LLVMGetFirstParam(LLVMValueRef Fn);
+    LLVMValueRef LLVMGetLastParam(LLVMValueRef Fn);
+    LLVMValueRef LLVMGetNextParam(LLVMValueRef Arg);
+    LLVMValueRef LLVMGetPreviousParam(LLVMValueRef Arg);
+    void LLVMAddAttribute(LLVMValueRef Arg, LLVMAttribute PA);
+    void LLVMRemoveAttribute(LLVMValueRef Arg, LLVMAttribute PA);
+    LLVMAttribute LLVMGetAttribute(LLVMValueRef Arg);
+    void LLVMSetParamAlignment(LLVMValueRef Arg, uint algn);
 
     //////////////////////////////////////////////////////////////////////////
     // operations on basic blocks
