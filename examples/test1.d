@@ -1,23 +1,23 @@
 import bustin.capi.core;
 
+// http://pastebin.com/Skgrvajg
+
 int main() {
-    // needs more substance!
     auto ctxt = LLVMGetGlobalContext();
     auto builder = LLVMCreateBuilderInContext(ctxt);
-
     auto mod = LLVMModuleCreateWithNameInContext("test1", ctxt);
 
     auto voidTy = LLVMVoidTypeInContext(ctxt);
-
     auto intTy = LLVMInt32TypeInContext(ctxt);
 
     ////////////////////////////////////////////////////////////////////////
-    // TODO: reference to puts
-    // LLVMTypeRef[1] putsTypes;
+    // reference to external puts function from c library
+    LLVMTypeRef[1] putsTypes;
+    putsTypes[0] = LLVMPointerType(LLVMInt8TypeInContext(ctxt), 0);
 
-    // LLVMAddFunction(
-    //     mod, "puts",
-    //     LLVMFunctionType(voidTy, putsTypes.ptr, putsTypes.length, false));
+    auto putsFun = LLVMAddFunction(
+        mod, "puts",
+        LLVMFunctionType(voidTy, putsTypes.ptr, putsTypes.length, false));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
@@ -40,6 +40,27 @@ int main() {
         mod, "main", LLVMFunctionType(voidTy, null, 0, false));
     auto mainBlock = LLVMAppendBasicBlock(mainFun, "entry");
     LLVMPositionBuilderAtEnd(builder, mainBlock);
+
+    LLVMValueRef args[1];
+    auto constStr = LLVMConstString("punkso", 6, false);
+
+    auto glob = LLVMAddGlobal(mod, LLVMTypeOf(constStr), "punkStr");
+    LLVMSetInitializer(glob, constStr);
+    LLVMSetGlobalConstant(glob, 1);
+    LLVMSetLinkage(glob, LLVMLinkage.LLVMInternalLinkage);
+
+    LLVMValueRef idx[2];
+    idx[0] = LLVMConstInt(intTy, 0, false);
+    idx[1] = LLVMConstInt(intTy, 0, false);
+    args[0] = LLVMBuildGEP(
+        builder,
+        glob,
+        idx.ptr,
+        idx.length,
+        "tmp");
+
+    LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
+
     LLVMBuildRetVoid(builder);
 
     LLVMDumpModule(mod);
