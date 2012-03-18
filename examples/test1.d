@@ -47,7 +47,7 @@ int main() {
     auto glob = LLVMAddGlobal(mod, LLVMTypeOf(constStr), "punkStr");
     LLVMSetInitializer(glob, constStr);
     LLVMSetGlobalConstant(glob, 1);
-    LLVMSetLinkage(glob, LLVMLinkage.LLVMInternalLinkage);
+    LLVMSetLinkage(glob, LLVMLinkage.Internal);
 
     LLVMValueRef idx[2];
     idx[0] = LLVMConstInt(intTy, 0, false);

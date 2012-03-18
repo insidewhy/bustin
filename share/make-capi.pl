@@ -31,6 +31,13 @@ sub gen_module($) {
             while (<FH>) {
                 if (/^\s*}\s*(\w+)/) {
                     push @body, "enum $1 {\n";
+                    (my $sfx = $1) =~ s/LLVM//;
+
+                    foreach (@enum) {
+                        # clean up enum values as D scopes them better than c
+                        s/LLVM//;
+                        s/$sfx//;
+                    }
                     last;
                 }
                 push @enum, $_;
