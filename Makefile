@@ -2,8 +2,9 @@
 
 include mk/flags.mk
 
-examples: capi.d
+examples: capi/core.d
 	${MAKE} -C examples
 
-capi.d: share/make-capi.pl
+capi/core.d: share/make-capi.pl
+	mkdir -p capi
 	$< > $@

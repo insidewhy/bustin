@@ -1,4 +1,4 @@
-import bustin.capi;
+import bustin.capi.core;
 
 int main() {
     // needs more substance!

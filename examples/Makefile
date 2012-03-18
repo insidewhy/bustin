@@ -2,7 +2,7 @@ include ../mk/flags.mk
 
 .PHONY: test1 view clean
 
-deps = $(wildcard ../*.d)
+deps = $(wildcard ../capi/*.d)
 dmd ?= dmd
 O = .obj
 
@@ -16,7 +16,7 @@ view: $(addprefix view-,${tests})
 test1: ${O}/test1
 
 ${O}/%: %.d ${deps}
-	${dmd} -od${O} -of$@ -I.. $^ ${llvm_link}
+	${dmd} -od${O} -of$@ -I../.. $^ ${llvm_link}
 
 view-%: ${O}/%
 	./$<
