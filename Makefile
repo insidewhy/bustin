@@ -3,4 +3,4 @@
 include mk/flags.mk
 
 examples:
-	make -C examples
+	${MAKE} -C examples
