@@ -2,5 +2,8 @@
 
 include mk/flags.mk
 
-examples:
+examples: capi.d
 	${MAKE} -C examples
+
+capi.d: share/make-capi.pl
+	$< > $@

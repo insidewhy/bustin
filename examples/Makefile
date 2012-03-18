@@ -1,6 +1,6 @@
 include ../mk/flags.mk
 
-.PHONY: test1 view
+.PHONY: test1 view clean
 
 deps = $(wildcard ../*.d)
 dmd ?= dmd
@@ -25,4 +25,4 @@ compiled-%: ${O}/%
 	./$< 2>&1 | llvm-as | llvm-ld - -o $@
 
 clean:
-	rm -f test1
+	rm -rf ${O}
