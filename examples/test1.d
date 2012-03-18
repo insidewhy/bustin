@@ -26,19 +26,19 @@ int main() {
 
     auto pumpFun = LLVMAddFunction(
         mod, "pump", LLVMFunctionType(voidTy, pumpTypes.ptr, pumpTypes.length, false));
-    auto pumpBlock = LLVMAppendBasicBlock(pumpFun, "entry");
+    auto pumpBlock = LLVMAppendBasicBlock(pumpFun, "");
     LLVMPositionBuilderAtEnd(builder, pumpBlock);
     auto v1stack = LLVMBuildAlloca(builder, intTy, "fruitbat");
     auto v1 = LLVMConstInt(intTy, 14, false);
-    auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1, "tmp");
-    auto ret2 = LLVMBuildAdd(builder, ret1, v1, "tmp");
+    auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1, "");
+    auto ret2 = LLVMBuildAdd(builder, ret1, v1, "");
     LLVMBuildStore(builder, ret2, v1stack);
     // TODO: put it or something
     LLVMBuildRetVoid(builder);
 
     auto mainFun = LLVMAddFunction(
         mod, "main", LLVMFunctionType(voidTy, null, 0, false));
-    auto mainBlock = LLVMAppendBasicBlock(mainFun, "entry");
+    auto mainBlock = LLVMAppendBasicBlock(mainFun, "");
     LLVMPositionBuilderAtEnd(builder, mainBlock);
 
     LLVMValueRef args[1];
@@ -57,7 +57,7 @@ int main() {
         glob,
         idx.ptr,
         idx.length,
-        "tmp");
+        "");
 
     LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
 
