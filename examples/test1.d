@@ -11,26 +11,35 @@ int main() {
 
     auto intTy = LLVMInt32TypeInContext(ctxt);
 
-    LLVMTypeRef[1] types;
-    types[0] = intTy;
+    ////////////////////////////////////////////////////////////////////////
+    // TODO: reference to puts
+    // LLVMTypeRef[1] putsTypes;
 
-    auto funTy = LLVMFunctionType(voidTy, types.ptr, types.length, false);
+    // LLVMAddFunction(
+    //     mod, "puts",
+    //     LLVMFunctionType(voidTy, putsTypes.ptr, putsTypes.length, false));
 
-    auto pumpFun = LLVMAddFunction(mod, "pump", funTy);
+    ////////////////////////////////////////////////////////////////////////
+    // pump function
+    LLVMTypeRef[1] pumpTypes;
+    pumpTypes[0] = intTy;
 
-    auto block = LLVMAppendBasicBlock(pumpFun, "entry");
-
-    LLVMPositionBuilderAtEnd(builder, block);
-
+    auto pumpFun = LLVMAddFunction(
+        mod, "pump", LLVMFunctionType(voidTy, pumpTypes.ptr, pumpTypes.length, false));
+    auto pumpBlock = LLVMAppendBasicBlock(pumpFun, "entry");
+    LLVMPositionBuilderAtEnd(builder, pumpBlock);
     auto v1stack = LLVMBuildAlloca(builder, intTy, "fruitbat");
-
     auto v1 = LLVMConstInt(intTy, 14, false);
-
     auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1, "tmp");
     auto ret2 = LLVMBuildAdd(builder, ret1, v1, "tmp");
     LLVMBuildStore(builder, ret2, v1stack);
-
     // TODO: put it or something
+    LLVMBuildRetVoid(builder);
+
+    auto mainFun = LLVMAddFunction(
+        mod, "main", LLVMFunctionType(voidTy, null, 0, false));
+    auto mainBlock = LLVMAppendBasicBlock(mainFun, "entry");
+    LLVMPositionBuilderAtEnd(builder, mainBlock);
     LLVMBuildRetVoid(builder);
 
     LLVMDumpModule(mod);
