@@ -2,7 +2,7 @@ include ../mk/flags.mk
 
 .PHONY: test1 view compiled clean
 
-deps = $(wildcard ../capi/*.d)
+deps = $(wildcard ../capi/*.d ../gen/*.d ../*.d)
 dmd ?= dmd
 O = .obj
 

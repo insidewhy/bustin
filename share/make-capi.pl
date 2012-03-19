@@ -1,12 +1,87 @@
 #!/usr/bin/env perl
 
+# hacky perl script, the llvm authors are pretty consistent with their
+# formatting so this doesn't have to be perfect
+
 use strict;
 
 my $basedir = '/usr/include/llvm-c/';
 
+# metadata about classes
+my %class = (
+    Context => {
+        subout => 'InContext'
+    },
+    Module => {},
+    Type => {},
+    Value => {},
+    BasicBlock => {},
+    Builder => {},
+    ModuleProvider => {},
+    MemoryBuffer => {},
+    PassManager => {},
+    PassRegistry => {},
+    Use => {}
+);
+
+sub clean_types($) {
+    my $_ = shift;
+    s/unsigned long long/ulong/g;
+    s/^const char/constchar/g; # d return type problem with const char
+    s/long long/long/g;
+    s/unsigned/uint/g;
+    s/uint64_t/ulong/g;
+    s/uint8_t/ubyte/g;
+    s/align/algn/g;  # used as parameter name, keyword in d
+    return $_;
+}
+
+sub match_function($\@$) {
+    my ($fh, $body, $_) = @_;
+    # $_ = clean_types $_;
+    return 0 unless /((?:\w\s*)+[*\s])(\w+)\((.*)/;
+
+    # have a function
+
+    my ($ret, $name, $param) = (clean_types($1), $2, $3);
+
+    if ($param eq 'void);') {
+        push @$body, "$ret$name();\n";
+        return 1; # there's never anything after for now
+    }
+
+    if ($param !~ /\)/) {
+        while (<$fh>) {
+            $param .= $_;
+            $param =~ s/\s+/ /g;
+            last if /\)/;
+        }
+        # more lines to read
+    }
+
+    $param = clean_types $param;
+
+    if ($param =~ /;\s*(\w.*)/) {
+        my $after = $1;
+        $param =~ s/;.*/;/;
+        push @$body, "$ret$name($param\n";
+        match_function($fh, $body, $after);
+    }
+    else {
+        push @$body, "$ret$name($param\n";
+    }
+
+    print STDERR "$ret$name($param\n";
+
+    # TODO: if no ) in $param then look for more arguments
+    # TODO: see if there are more functions after ;
+
+    return 1;
+}
+
 sub gen_module($) {
     my $module = shift;
-    my $file = $basedir . $module;
+    my $file = $basedir . ucfirst($module) . '.h';
 
     my $on = 0;
 
@@ -14,8 +89,9 @@ sub gen_module($) {
     my @body;
 
     # -C keeps comments
-    open FH, "cpp -C $file |" || die "could not open file";
-    while (<FH>) {
+    open my $fh, "cpp -C $file |" || die "could not open file";
+    while (<$fh>) {
+        # ignore functions not in file being processed
         if (/^# \d+ "([^"]+)"/) {
             $on = ($1 =~ /^$file/);
             next;
@@ -28,10 +104,12 @@ sub gen_module($) {
         }
         elsif (/typedef enum/) {
             my @enum;
-            while (<FH>) {
+            while (<$fh>) {
                 if (/^\s*}\s*(\w+)/) {
                     push @body, "enum $1 {\n";
                     (my $sfx = $1) =~ s/LLVM//;
+                    $sfx =~ s/Predicate/(Predicate)?/;
+                    $sfx =~ s/ClauseTy/(ClauseTy)?/;
 
                     foreach (@enum) {
                         # clean up enum values as D scopes them better than c
@@ -47,27 +125,19 @@ sub gen_module($) {
             push @body, "}\n";
             next;
         }
+        elsif (match_function $fh, @body, $_) {
+            next;
+        }
         else {
             s/typedef/alias/;
         }
 
-        s/\(\s*void\s*\)/()/g; # d doesn't support main(void) etc.
-        s/unsigned long long/ulong/g;
-        s/^const char/constchar/g; # d return type problem with const char
-        s/long long/long/g;
-        s/unsigned/uint/g;
-        s/uint64_t/ulong/g;
-        s/uint8_t/ubyte/g;
-        s/align/algn/g;  # used as parameter name, keyword in d
-
-        push @body, $_;
+        push @body, clean_types($_);
     }
-
-    (my $clean_mod = lc $module) =~ s/\..*//;
 
     print <<EOF
 // this is a generated file, please do not edit it
-module bustin.capi.$clean_mod;
+module bustin.gen.$module;
 
 // d has a problem with "const char *" as a return type
 alias const char constchar;
@@ -84,5 +154,9 @@ EOF
     print "\n} // end extern C";
 }
 
-my $module = $ARGV[0] || 'Core.h';
-gen_module $module;
+if (! @ARGV) {
+    gen_module 'core';
+}
+else {
+    foreach (@ARGV) { gen_module $_; }
+}

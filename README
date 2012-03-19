@@ -2,6 +2,9 @@ Run "make" to build the capi source code.
 
 Organised like this:
 
+gen/ (generated directory)
+    core.d     -> bustin.gen.core      = generated core.d from llvm-c/Core.h
+    core_obj.d -> bustin.gen.core_obj  = generated OO style wrapper for core
 capi/
-    core.d -> bustin.capi.core = raw llvm-c/Core.h API.
-core.d     -> bustin.core      = d wrapper for c interface.
+    core.d     -> bustin.capi.core  = public imports gen.core and adds stuff
+core.d         -> bustin.core       = public imports gen.core_obj and adds stuff

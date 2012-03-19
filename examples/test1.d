@@ -1,6 +1,5 @@
 import bustin.capi.core;
-
-// http://pastebin.com/Skgrvajg
+// import bustin.core;
 
 int main() {
     auto ctxt = LLVMGetGlobalContext();
@@ -25,8 +24,8 @@ int main() {
     pumpTypes[0] = intTy;
 
     auto pumpFun = LLVMAddFunction(
-        mod, "pump", LLVMFunctionType(voidTy, pumpTypes.ptr, pumpTypes.length, false));
-    auto pumpBlock = LLVMAppendBasicBlock(pumpFun, "");
+        mod, "pump", LLVMFunctionType(voidTy, pumpTypes.ptr, pumpTypes.length));
+    auto pumpBlock = LLVMAppendBasicBlock(pumpFun);
     LLVMPositionBuilderAtEnd(builder, pumpBlock);
     auto v1stack = LLVMBuildAlloca(builder, intTy, "fruitbat");
     auto v1 = LLVMConstInt(intTy, 14, false);
@@ -37,12 +36,12 @@ int main() {
     LLVMBuildRetVoid(builder);
 
     auto mainFun = LLVMAddFunction(
-        mod, "main", LLVMFunctionType(intTy, null, 0, false));
-    auto mainBlock = LLVMAppendBasicBlock(mainFun, "");
+        mod, "main", LLVMFunctionType(intTy, null, 0));
+    auto mainBlock = LLVMAppendBasicBlock(mainFun);
     LLVMPositionBuilderAtEnd(builder, mainBlock);
 
     LLVMValueRef args[1];
-    auto constStr = LLVMConstString("punkso", 6, false);
+    auto constStr = LLVMConstString("punkso", 6);
 
     auto glob = LLVMAddGlobal(mod, LLVMTypeOf(constStr), "punkStr");
     LLVMSetInitializer(glob, constStr);
@@ -52,12 +51,7 @@ int main() {
     LLVMValueRef idx[2];
     idx[0] = LLVMConstInt(intTy, 0, false);
     idx[1] = LLVMConstInt(intTy, 0, false);
-    args[0] = LLVMBuildGEP(
-        builder,
-        glob,
-        idx.ptr,
-        idx.length,
-        "");
+    args[0] = LLVMBuildGEP(builder, glob, idx.ptr, idx.length, "");
 
     LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
 

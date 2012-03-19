@@ -2,11 +2,11 @@
 
 include mk/flags.mk
 
-capi: capi/core.d
+capi: gen/core.d
 
-examples: capi/core.d
+examples: capi
 	${MAKE} -C examples
 
-capi/core.d: share/make-capi.pl
-	mkdir -p capi
+gen/core.d: share/make-capi.pl
+	mkdir -p gen
 	$< > $@
