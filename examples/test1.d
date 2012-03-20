@@ -15,8 +15,7 @@ int main() {
     putsTypes[0] = LLVMPointerType(LLVMInt8TypeInContext(ctxt), 0);
 
     auto putsFun = LLVMAddFunction(
-        mod, "puts",
-        LLVMFunctionType(voidTy, putsTypes.ptr, putsTypes.length, false));
+        mod, "puts", LLVMFunctionType(voidTy, putsTypes));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
@@ -24,13 +23,13 @@ int main() {
     pumpTypes[0] = intTy;
 
     auto pumpFun = LLVMAddFunction(
-        mod, "pump", LLVMFunctionType(voidTy, pumpTypes.ptr, pumpTypes.length));
+        mod, "pump", LLVMFunctionType(voidTy, pumpTypes));
     auto pumpBlock = LLVMAppendBasicBlock(pumpFun);
     LLVMPositionBuilderAtEnd(builder, pumpBlock);
     auto v1stack = LLVMBuildAlloca(builder, intTy, "fruitbat");
     auto v1 = LLVMConstInt(intTy, 14, false);
-    auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1, "");
-    auto ret2 = LLVMBuildAdd(builder, ret1, v1, "");
+    auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1);
+    auto ret2 = LLVMBuildAdd(builder, ret1, v1);
     LLVMBuildStore(builder, ret2, v1stack);
     // TODO: put it or something
     LLVMBuildRetVoid(builder);
@@ -40,8 +39,7 @@ int main() {
     auto mainBlock = LLVMAppendBasicBlock(mainFun);
     LLVMPositionBuilderAtEnd(builder, mainBlock);
 
-    LLVMValueRef args[1];
-    auto constStr = LLVMConstString("punkso", 6);
+    auto constStr = LLVMConstString("punkso");
 
     auto glob = LLVMAddGlobal(mod, LLVMTypeOf(constStr), "punkStr");
     LLVMSetInitializer(glob, constStr);
@@ -51,7 +49,9 @@ int main() {
     LLVMValueRef idx[2];
     idx[0] = LLVMConstInt(intTy, 0, false);
     idx[1] = LLVMConstInt(intTy, 0, false);
-    args[0] = LLVMBuildGEP(builder, glob, idx.ptr, idx.length, "");
+
+    LLVMValueRef args[1];
+    args[0] = LLVMBuildGEP(builder, glob, idx);
 
     LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
 

@@ -8,3 +8,5 @@ gen/ (generated directory)
 capi/
     core.d     -> bustin.capi.core  = public imports gen.core and adds stuff
 core.d         -> bustin.core       = public imports gen.core_obj and adds stuff
+
+Also supports modules "execution_engine" and "target" as per core.

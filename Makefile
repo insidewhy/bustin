@@ -2,11 +2,12 @@
 
 include mk/flags.mk
 
-capi: gen/core.d
+gen_files = gen/core.d gen/execution_engine.d gen/target.d
+
+capi: ${gen_files}
 
 examples: capi
 	${MAKE} -C examples
 
-gen/core.d: share/make-capi.pl
-	mkdir -p gen
-	$< > $@
+${gen_files}: share/make-capi.pl
+	@$< 2>/dev/null

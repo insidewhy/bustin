@@ -4,15 +4,15 @@ module bustin.capi.core;
 public import bustin.gen.core;
 import gen = bustin.gen.core; // for redirecting
 
-// take advantage of some things like default arguments and ranges
-LLVMBasicBlockRef LLVMAppendBasicBlock(LLVMValueRef Fn, const char *Name = "") {
-    return gen.LLVMAppendBasicBlock(Fn, Name);
+LLVMValueRef LLVMConstString(string Str, LLVMBool DontNullTerminate = false) {
+    return gen.LLVMConstString(Str.ptr, cast(uint)Str.length, DontNullTerminate);
 }
 
-LLVMValueRef LLVMConstString(constchar *Str, uint Length, LLVMBool DontNullTerminate = false) {
-    return gen.LLVMConstString(Str, Length, DontNullTerminate);
+// take advantage of some things like strings and ranges
+LLVMTypeRef LLVMFunctionType(LLVMTypeRef ReturnType, LLVMTypeRef[] ParamTypes, LLVMBool IsVarArg = false) {
+    return gen.LLVMFunctionType(ReturnType, ParamTypes.ptr, cast(uint)ParamTypes.length, IsVarArg);
 }
 
-LLVMTypeRef LLVMFunctionType(LLVMTypeRef ReturnType, LLVMTypeRef *ParamTypes, uint ParamCount, LLVMBool IsVarArg = false) {
-    return gen.LLVMFunctionType(ReturnType, ParamTypes, ParamCount, IsVarArg);
+LLVMValueRef LLVMBuildGEP(LLVMBuilderRef B, LLVMValueRef Pointer, LLVMValueRef[] Indices, const char *Name = "") {
+    return gen.LLVMBuildGEP(B, Pointer, Indices.ptr, cast(uint)Indices.length, Name);
 }
