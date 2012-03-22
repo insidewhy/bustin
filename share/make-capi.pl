@@ -39,8 +39,8 @@ sub clean_types($) {
     return $_;
 }
 
-sub make_function(\@\@$$$) {
-    my ($body, $fwds, $ret, $name, $param) = @_;
+sub make_function(\%$$$) {
+    my ($out, $ret, $name, $param) = @_;
     $ret =~ s/^const char/constchar/g; # d return type problem with const char
     $ret =~ s/static inline //g;
 
@@ -55,7 +55,7 @@ sub make_function(\@\@$$$) {
     $param =~ s/LLVMBool (DontNullTerminate|IsVarArg|SignExtend)/$& = false/;
     $param =~ s/^void$//;
 
-    push @$body, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
+    push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
     # todo: build class version
 
     return if $has_body;
@@ -85,12 +85,12 @@ sub make_function(\@\@$$$) {
 
     $modParam =~ s/\Q$mod\E/$dType $ptrName/g;
     $fwdArgs =~ s/$ptrName, \w+/$ptrName.ptr, cast(uint)$ptrName.length/;
-    push @$fwds,
+    push @{$out->{'fwds'}},
          "\n\n$ret$name($modParam) {\n    return $name($fwdArgs);\n}";
 }
 
-sub match_functions($\@\@\%$) {
-    my ($fh, $body, $fwds, $classes, $_) = @_;
+sub match_functions($\%$) {
+    my ($fh, $out, $_) = @_;
     return 0 unless /((?:\w\s*)+[*\s])(\w+)\((.*)/;
 
     # have a function
@@ -113,24 +113,24 @@ sub match_functions($\@\@\%$) {
     if ($param =~ /;\s*(\w.*)/) {
         my $after = $1;
         $param =~ s/;.*/;/;
-        make_function @$body, @$fwds, $ret, $name, $param;
-        match_functions($fh, $body, $fwds, $classes, $after);
+        make_function %$out, $ret, $name, $param;
+        match_functions($fh, $out, $after);
     }
     else {
-        make_function @$body, @$fwds, $ret, $name, $param;
+        make_function %$out, $ret, $name, $param;
     }
 
     return 1;
 }
 
-sub match_enum($\@$) {
-    my ($fh, $body, $_) = @_;
+sub match_enum($\%$) {
+    my ($fh, $out, $_) = @_;
     return 0 unless /typedef enum/;
 
     my @enum;
     while (<$fh>) {
         if (/^\s*}\s*(\w+)/) {
-            push @$body, "enum $1 {\n";
+            push @{$out->{'body'}}, "enum $1 {\n";
             (my $sfx = $1) =~ s/LLVM//;
             $sfx =~ s/Predicate/(Predicate)?/;
             $sfx =~ s/ClauseTy/(ClauseTy)?/;
@@ -145,24 +145,25 @@ sub match_enum($\@$) {
         push @enum, $_;
     }
 
-    push @$body, @enum;
-    push @$body, "}\n";
+    push @{$out->{'body'}}, @enum;
+    push @{$out->{'body'}}, "}\n";
 }
 
 sub gen_module($) {
     my $module = shift;
+    my %out = (
+        body => [],
+        fwds => [],
+        classes => {}
+    );
     (my $file = $module) =~ s/(?:^|_)(\w)/\U$1/g;
     my $path = $basedir . $file . '.h';
 
     my $on = 0;
 
     my @types;
-    my @body;  # body of c-api file
-    my @fwds;  # auto-generated forwarding methods
-    my %classes; # classes with forwarding methods to build from code
-
     foreach (keys %class) {
-        $classes{$_} = {};
+        $out{classes}{$_} = {};
     }
 
     # -C keeps comments
@@ -187,17 +188,17 @@ sub gen_module($) {
             push @types, $1;
             s/typedef struct/alias/;
         }
-        elsif (match_enum $fh, @body, $_) {
+        elsif (match_enum $fh, %out, $_) {
             next;
         }
-        elsif (match_functions $fh, @body, @fwds, %classes, $_) {
+        elsif (match_functions $fh, %out, $_) {
             next;
         }
         else {
             s/typedef/alias/;
         }
 
-        push @body, $_;
+        push @{$out{'body'}}, $_;
     }
 
     my $extra = $module eq 'core' ? '' : "import bustin.gen.core;\n";
@@ -219,9 +220,9 @@ EOF
     foreach (@types) {
         print $wfh "struct $_;\n";
     }
-    print $wfh join("", @body);
+    print $wfh join("", @{$out{'body'}});
     print $wfh "\n} // end extern C";
-    print $wfh join("", @fwds);
+    print $wfh join("", @{$out{'fwds'}});
 }
 
 @ARGV = ('core', 'execution_engine', 'target') unless @ARGV;
