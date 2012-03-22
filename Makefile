@@ -1,4 +1,6 @@
-.PHONY: capi examples
+.PHONY: capi examples force_capi
+
+mk_capi = ./share/make-capi.pl
 
 include mk/flags.mk
 
@@ -9,5 +11,8 @@ capi: ${gen_files}
 examples: capi
 	${MAKE} -C examples
 
-${gen_files}: share/make-capi.pl
+${gen_files}: ${mk_capi}
 	@$< 2>/dev/null
+
+force_capi:
+	${mk_capi}

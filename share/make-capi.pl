@@ -39,8 +39,8 @@ sub clean_types($) {
     return $_;
 }
 
-sub make_function(\@$$$) {
-    my ($body, $ret, $name, $param) = @_;
+sub make_function(\@\@$$$) {
+    my ($body, $fwds, $ret, $name, $param) = @_;
     $ret =~ s/^const char/constchar/g; # d return type problem with const char
     $ret =~ s/static inline //g;
 
@@ -52,20 +52,45 @@ sub make_function(\@$$$) {
     $param =~ s/,\s+const char \*Name$/$& = ""/
         unless $name =~ /$no_optional_name/;
 
-    $param =~ s/DontNullTerminate/$& = false/;
+    $param =~ s/LLVMBool (DontNullTerminate|IsVarArg|SignExtend)/$& = false/;
     $param =~ s/^void$//;
 
     push @$body, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
+    # todo: build class version
 
-    unless ($has_body) {
-        # possible pointer + length, can add conversion from d
-        if ($param =~ /\* *[a-zA-Z_]* *, *uint/) {
-        }
+    return if $has_body;
+    # possible pointer + length, can add conversion from array/string
+    return unless $param =~ /(?:,|^) *([^,]*\* *\w+ *, *uint \w+)/;
+
+    my $mod = $1;
+    my @argNames;
+
+    # type-only argument prototype interferes with argument forwarding
+    $param =~ s/LLVMBuilderRef,/LLVMBuilderRef B,/;
+
+    while ($param =~ /(\w+)(?:, ?| = [^,]+|$)/g) { push @argNames, $1; }
+    my $fwdArgs = join ', ', @argNames;
+
+    my ($modParam, $ptrName, $dType);
+    $modParam = $param;
+    if ($mod =~ /^const char ?\* ?(\w+)/) {
+        $dType = 'string';
+        $ptrName = $1;
     }
+    else {
+        $mod =~ /^(\w+) ?\* ?(\w+)/;
+        $dType = $1 . '[]';
+        $ptrName = $2;
+    }
+
+    $modParam =~ s/\Q$mod\E/$dType $ptrName/g;
+    $fwdArgs =~ s/$ptrName, \w+/$ptrName.ptr, cast(uint)$ptrName.length/;
+    push @$fwds,
+         "\n\n$ret$name($modParam) {\n    return $name($fwdArgs);\n}";
 }
 
-sub match_functions($\@\%$) {
-    my ($fh, $body, $classes, $_) = @_;
+sub match_functions($\@\@\%$) {
+    my ($fh, $body, $fwds, $classes, $_) = @_;
     return 0 unless /((?:\w\s*)+[*\s])(\w+)\((.*)/;
 
     # have a function
@@ -88,11 +113,11 @@ sub match_functions($\@\%$) {
     if ($param =~ /;\s*(\w.*)/) {
         my $after = $1;
         $param =~ s/;.*/;/;
-        make_function @$body, $ret, $name, $param;
-        match_functions($fh, $body, $classes, $after);
+        make_function @$body, @$fwds, $ret, $name, $param;
+        match_functions($fh, $body, $fwds, $classes, $after);
     }
     else {
-        make_function @$body, $ret, $name, $param;
+        make_function @$body, @$fwds, $ret, $name, $param;
     }
 
     return 1;
@@ -133,6 +158,7 @@ sub gen_module($) {
 
     my @types;
     my @body;  # body of c-api file
+    my @fwds;  # auto-generated forwarding methods
     my %classes; # classes with forwarding methods to build from code
 
     foreach (keys %class) {
@@ -164,7 +190,7 @@ sub gen_module($) {
         elsif (match_enum $fh, @body, $_) {
             next;
         }
-        elsif (match_functions $fh, @body, %classes, $_) {
+        elsif (match_functions $fh, @body, @fwds, %classes, $_) {
             next;
         }
         else {
@@ -191,18 +217,12 @@ EOF
     ;
 
     foreach (@types) {
-        print $wfh "extern struct $_;\n";
+        print $wfh "struct $_;\n";
     }
     print $wfh join("", @body);
-
     print $wfh "\n} // end extern C";
+    print $wfh join("", @fwds);
 }
 
-if (! @ARGV) {
-    gen_module 'core';
-    gen_module 'execution_engine';
-    gen_module 'target';
-}
-else {
-    foreach (@ARGV) { gen_module $_; }
-}
+@ARGV = ('core', 'execution_engine', 'target') unless @ARGV;
+foreach (@ARGV) { gen_module $_; }

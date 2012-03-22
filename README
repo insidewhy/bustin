@@ -2,11 +2,14 @@ Run "make" to build the capi source code.
 
 Organised like this:
 
+share/
+    make_capi.pl -> Reads llvm-c header files and generates D code and
+                    forwarding functions wrapping things like strings
 gen/ (generated directory)
-    core.d     -> bustin.gen.core      = generated core.d from llvm-c/Core.h
-    core_obj.d -> bustin.gen.core_obj  = generated OO style wrapper for core
+    core.d       -> bustin.gen.core      = generated core.d from llvm-c/Core.h
+    core_obj.d   -> bustin.gen.core_obj  = generated OO style wrapper for core
 capi/
-    core.d     -> bustin.capi.core  = public imports gen.core and adds stuff
-core.d         -> bustin.core       = public imports gen.core_obj and adds stuff
+    core.d       -> bustin.capi.core  = public imports gen.core + add
+core.d           -> bustin.core       = public imports gen.core_obj + add
 
 Also supports modules "execution_engine" and "target" as per core.
