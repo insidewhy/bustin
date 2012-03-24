@@ -36,11 +36,23 @@ my %class = (
     User => { parent => 'Value' },
     Constant => {
         parent => 'User',
-        method_name => subout_pre_caps('const')
+        method_name => subout_pre_caps('const'),
+    },
+    GlobalValue => {
+        parent => 'Constant',
+        method_name => subout('Global'),
+    },
+    GlobalVariable => {
+        parent => 'GlobalValue',
+        method_name => sub ($) {
+            my $name = shift;
+            $name =~ s/delete/eraseFromParent/g; # like c++ version
+            subout('Global')->($name);
+        },
     },
     BasicBlock => {
         parent => 'Value',
-        super => 'LLVMBasicBlockAsValue(c_)'
+        super => 'LLVMBasicBlockAsValue(c_)',
     },
     Builder => {
         method_name => subout_pre_caps('build')
@@ -108,6 +120,12 @@ sub make_method($$$$;$) {
     }
     elsif ($param =~ /^LLVMValueRef +(ConstantVal|LHSConstant)/) {
         $className = 'Constant';
+    }
+    elsif ($param =~ /^LLVMValueRef +(GlobalVar)/) {
+        $className = 'GlobalVariable';
+    }
+    elsif ($param =~ /^LLVMValueRef +(Global)/) {
+        $className = 'GlobalValue';
     }
     elsif ($param =~ /^LLVMBuilderRef +B/) {
         $className = 'Builder';
@@ -328,11 +346,12 @@ sub output_class(\%$$) {
     if (! $parent || $realPar) {
         print $wfh "    alias LLVM${llvmType}Ref CType;\n\n";
         print $wfh "    CType c;\n\n";
-        print $wfh "    this(CType c_) { c = c_; };\n\n";
+        print $wfh "    this(CType c_ = null) { c = c_; };\n\n";
     }
     else {
-        print $wfh "    this(CType c_) { super(c_); };\n\n";
+        print $wfh "    this(CType c_ = null) { super(c_); };\n\n";
     }
+    print $wfh "    bool empty() { return c != null; };\n\n";
 
     while (my ($mName, $m) = each %{$clss->{'methods'}}) {
         output_method $wfh, $mName, $m;
