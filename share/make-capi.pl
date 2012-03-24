@@ -12,8 +12,8 @@ sub subout($) {
     my $out = shift;
     return sub($) {
         my $name = shift;
-        $name =~ s/$out(.?)/\l$1/;
-        return $name;
+        $name =~ s/$out//;
+        return lcfirst $name;
     }
 }
 
@@ -30,6 +30,7 @@ my %class = (
     },
     BasicBlock => {
         parent => 'Value',
+        super => 'LLVMBasicBlockAsValue(c_)'
     },
     Builder => {
         method_name => sub ($) {
@@ -43,10 +44,13 @@ my %class = (
     Value => {
         method_name => subout('[Vv]alue')
     },
+    Use => {},
+    Type => {},
 );
 
 # metadata about methods
 my $no_optional_name = 'BuildGlobalString|Name|AddGlobal|SetGC|AddAlias$';
+my $not_method = '[gG]enericValue';
 
 # turn c types into equivalent d types
 sub clean_types($) {
@@ -66,7 +70,7 @@ sub clean_types($) {
 sub get_fwd_args($) {
     my $param = shift;
     my @argNames;
-    while ($param =~ /(\w+)(?:, ?| = [^,]+|$)/g) { push @argNames, $1; }
+    while ($param =~ /(\w+)(?:, ?| = [^,]+|$|\[\])/g) { push @argNames, $1; }
     return join ', ', @argNames;
 }
 
@@ -86,6 +90,8 @@ sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
     # fwdArgs = how to forwards arguments from D to C in method body
 
+    return if $origName =~ /$not_method/;
+
     $fwdArgs = get_fwd_args $param unless $fwdArgs;
 
     # print STDERR "candid $ret$name($param) { $fwdArgs; }\n";
@@ -95,6 +101,12 @@ sub make_method($$$$;$) {
     }
     elsif ($param =~ /^LLVMBuilderRef +B/) {
         $className = 'Builder';
+    }
+    elsif ($param =~ /^LLVMUseRef +U/) {
+        $className = 'Use';
+    }
+    elsif ($param =~ /^LLVMTypeRef +\w+/) {
+        $className = 'Type';
     }
     return unless $className;
 
@@ -160,6 +172,10 @@ sub make_function(\%$$$) {
 
     # possible pointer + length, can add conversion from array/string
     my $mod = $1;
+
+    # TODO: deal with
+    # LLVMValueRef LLVMConstIntOfArbitraryPrecision(LLVMTypeRef IntTy, uint NumWords, const ulong Words[]);
+    # *sigh*
 
     my $fwdArgs = get_fwd_args $param;
 
@@ -250,8 +266,8 @@ sub match_enum($\%$) {
 sub output_method($$$) {
     my ($wfh, $name, $m) = @_;
 
-    # simplify these.. no need to return value cast itself
     if ($name =~ /^isA/) {
+        # TODO: cast to underlying type
         print $wfh "    bool $name($m->{param}) {\n";
         print $wfh "        return $m->{origName}(c) != null;\n";
         print $wfh "    }\n\n";
@@ -282,14 +298,19 @@ sub output_method($$$) {
 
 # output class parsed from file earlier into object oriented wrapper module
 # currently being output
-sub output_class($$$) {
-    my ($wfh, $name, $meta) = @_;
-    return if ($meta->{'done'});
+sub output_class(\%$$) {
+    my ($classes, $wfh, $name) = @_;
+    my $meta = $classes->{$name};
+    return if $meta->{'done'};
 
-    # TODO: see if there are parent classes to do first
+    my $parent = $class{$name}{'parent'};
+    if ($parent) {
+        output_class($classes, $wfh, $parent);
+        $parent = " : $parent";
+    }
+    else { $parent = ''; }
 
-    my $parentStr = '';
-    print $wfh "\nclass $name$parentStr {\n";
+    print $wfh "\nclass $name$parent {\n";
     print $wfh "    alias LLVM${name}Ref CType;\n\n";
     print $wfh "    CType c;\n\n";
     print $wfh "    this(CType c_) { c = c_; };\n\n";
@@ -299,7 +320,6 @@ sub output_class($$$) {
     }
 
     print $wfh "\n}\n";
-
     $meta->{'done'} = 1;
 }
 
@@ -400,8 +420,9 @@ $extra
 EOF
     ;
 
-    while (my ($name, $meta) = each %{$out{'classes'}}) {
-        output_class $wfh, $name, $meta;
+    my $classes = $out{'classes'};
+    while (my ($name, $meta) = each %$classes) {
+        output_class %$classes, $wfh, $name;
     }
     close $wfh;
 }
