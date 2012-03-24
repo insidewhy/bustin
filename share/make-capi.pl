@@ -72,6 +72,18 @@ my %class = (
     },
     Use => {},
     Type => {},
+    StructType => {
+        parent => 'Type',
+        method_name => subout('[Ss]truct'),
+    },
+    IntegerType => {
+        parent => 'Type',
+        method_name => subout('Int'),
+    },
+    RealType => {
+        parent => 'Type',
+        method_name => subout('Real'),
+    },
 );
 
 # metadata about methods
@@ -152,6 +164,15 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMUseRef +U/) {
         $className = 'Use';
     }
+    elsif ($param =~ /^LLVMTypeRef StructTy/) {
+        $className = 'StructType';
+    }
+    elsif ($param =~ /^LLVMTypeRef IntTy/) {
+        $className = 'IntegerType';
+    }
+    elsif ($param =~ /^LLVMTypeRef RealTy/) {
+        $className = 'RealType';
+    }
     elsif ($param =~ /^LLVMTypeRef +\w+/) {
         $className = 'Type';
     }
@@ -170,6 +191,7 @@ sub make_method($$$$;$) {
     if (my $method_name = $class{$className}{'method_name'}) {
         $name = &$method_name($name);
     }
+    $name =~ s/^const$/$&_/g;
 
     # TODO: substitutute LLVM/Ref out of parameter types
     my $m = $methods->{$name} = {
