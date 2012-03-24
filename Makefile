@@ -15,4 +15,5 @@ ${gen_files}: ${mk_capi}
 	@$< 2>/dev/null
 
 force_capi:
-	${mk_capi}
+	@rm -f gen/*.d
+	@${mk_capi}

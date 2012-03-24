@@ -15,16 +15,6 @@ my %class = (
     Context => {
         subout => 'InContext'
     },
-    Module => {},
-    Type => {},
-    Value => {},
-    BasicBlock => {},
-    Builder => {},
-    ModuleProvider => {},
-    MemoryBuffer => {},
-    PassManager => {},
-    PassRegistry => {},
-    Use => {}
 );
 
 sub clean_types($) {
@@ -37,6 +27,61 @@ sub clean_types($) {
     s/\* *const *\*/**/g;
     s/align/algn/g;  # used as parameter name, keyword in d
     return $_;
+}
+
+sub get_fwd_args($) {
+    my $param = shift;
+    my @argNames;
+    while ($param =~ /(\w+)(?:, ?| = [^,]+|$)/g) { push @argNames, $1; }
+    return join ', ', @argNames;
+}
+
+sub get_methods(\%$) {
+    my ($out, $clss) = @_;
+
+    if (! $out->{'classes'}{$clss}) {
+        $out->{'classes'}{$clss} = { 'methods' => {} };
+    }
+    return $out->{'classes'}{$clss}{'methods'};
+}
+
+# tries to make a d wrapper method from a known function
+sub make_method($$$$;$) {
+    my ($out, $ret, $origName, $param, $fwdArgs) = @_;
+
+    $fwdArgs = get_fwd_args $param unless $fwdArgs;
+
+    # print STDERR "candid $ret$name($param) { $fwdArgs; }\n";
+    my $className;
+    if ($param =~ /^LLVMValueRef +Val/) {
+        $className = 'Value';
+    }
+    return unless $className;
+
+    my $methods = get_methods %$out, $className;
+    # remove first argument
+    foreach (($param, $fwdArgs)) { s/^[^,]+(?:,|$) *//g; }
+    (my $name = $origName) =~ s/^LLVM//;
+    # TODO: more substitutions on name?
+
+    # TODO: substitutute LLVM/Ref out of parameter types
+    my $m = $methods->{$name} = {
+        param    => $param,
+        fwdArgs  => $fwdArgs,
+        origName => $origName,
+    };
+
+    # deal with return type
+    $ret =~ s/ +$//;
+    if ($ret =~ /^LLVM(\w+)Ref$/) {
+        $ret = $1;
+        $m->{'origRet'} = $&;
+    }
+    elsif ($ret =~ /^LLVMBool$/) {
+        $ret = 'bool';
+        $m->{'origRet'} = 'LLVMBool';
+    }
+    $m->{'ret'} = $ret;
 }
 
 sub make_function(\%$$$) {
@@ -52,27 +97,24 @@ sub make_function(\%$$$) {
     $param =~ s/,\s+const char \*Name$/$& = ""/
         unless $name =~ /$no_optional_name/;
 
-    $param =~ s/LLVMBool (DontNullTerminate|IsVarArg|SignExtend)/$& = false/;
+    $param =~ s/LLVMBool (DontNullTerminate|IsVarArg|SignExtend|Packed)/$& = false/;
     $param =~ s/^void$//;
 
-    push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
-    # todo: build class version
-
-    return if $has_body;
-    # possible pointer + length, can add conversion from array/string
-    return unless $param =~ /(?:,|^) *([^,]*\* *\w+ *, *uint \w+)/;
-
-    my $mod = $1;
-    my @argNames;
-
-    # type-only argument prototype interferes with argument forwarding
+    # type-only argument prototype interferes with argument forwarding,
+    # although this will only be necessary if any forwarders are generated
     $param =~ s/LLVMBuilderRef,/LLVMBuilderRef B,/;
 
-    while ($param =~ /(\w+)(?:, ?| = [^,]+|$)/g) { push @argNames, $1; }
-    my $fwdArgs = join ', ', @argNames;
+    push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
 
-    my ($modParam, $ptrName, $dType);
-    $modParam = $param;
+    return make_method($out, $ret, $name, $param)
+        if $has_body or not $param =~ /(?:,|^) *([^,]*\* *\w+ *, *uint \w+)/;
+
+    # possible pointer + length, can add conversion from array/string
+    my $mod = $1;
+
+    my $fwdArgs = get_fwd_args $param;
+
+    my ($ptrName, $dType);
     if ($mod =~ /^const char ?\* ?(\w+)/) {
         $dType = 'string';
         $ptrName = $1;
@@ -83,10 +125,12 @@ sub make_function(\%$$$) {
         $ptrName = $2;
     }
 
-    $modParam =~ s/\Q$mod\E/$dType $ptrName/g;
+    $param =~ s/\Q$mod\E/$dType $ptrName/g;
+    make_method $out, $ret, $name, $param, $fwdArgs;
+
     $fwdArgs =~ s/$ptrName, \w+/$ptrName.ptr, cast(uint)$ptrName.length/;
     push @{$out->{'fwds'}},
-         "\n\n$ret$name($modParam) {\n    return $name($fwdArgs);\n}";
+         "\n\n$ret$name($param) {\n    return $name($fwdArgs);\n}";
 }
 
 sub match_functions($\%$) {
@@ -149,6 +193,61 @@ sub match_enum($\%$) {
     push @{$out->{'body'}}, "}\n";
 }
 
+sub output_method($$$) {
+    my ($wfh, $name, $m) = @_;
+
+    # simplify these.. no need to return value cast itself
+    $name = lcfirst $name;
+    if ($name =~ /^isA/) {
+        print $wfh "    bool $name($m->{param}) {\n";
+        print $wfh "        return $m->{origName}(c) != null;\n";
+        print $wfh "    }\n\n";
+        return
+    }
+
+    my $fwdArgs = 'c';
+    $fwdArgs .= ", $m->{fwdArgs}" if $m->{'fwdArgs'};
+
+    my $ret = $m->{'ret'};
+    my $sfx;
+    if (my $origRet = $m->{'origRet'}) {
+        if ($origRet eq 'LLVMBool') {
+            $sfx = ' != 0';
+            $ret = 'bool';
+        }
+        else {
+            # TODO: wrap return value in this case
+            $ret = $origRet;
+        }
+    }
+
+    print $wfh "    $ret $name($m->{param}) {\n";
+        print $wfh "        return $m->{origName}($fwdArgs)$sfx;\n";
+    print $wfh "    }\n\n";
+    # ...
+}
+
+sub output_class($$$) {
+    my ($wfh, $name, $meta) = @_;
+    return if ($meta->{'done'});
+
+    # TODO: see if there are parent classes to do first
+
+    my $parentStr = '';
+    print $wfh "\nclass $name$parentStr {\n";
+    print $wfh "    alias LLVM${name}Ref CType;\n\n";
+    print $wfh "    CType c;\n\n";
+    print $wfh "    this(CType c_) { c = c_; };\n\n";
+
+    while (my ($mName, $m) = each %{$meta->{'methods'}}) {
+        output_method $wfh, $mName, $m;
+    }
+
+    print $wfh "\n}\n";
+
+    $meta->{'done'} = 1;
+}
+
 sub gen_module($) {
     my $module = shift;
     my %out = (
@@ -162,9 +261,6 @@ sub gen_module($) {
     my $on = 0;
 
     my @types;
-    foreach (keys %class) {
-        $out{classes}{$_} = {};
-    }
 
     # -C keeps comments
     open my $fh, "cpp -C $path |" || die "could not open file";
@@ -174,6 +270,8 @@ sub gen_module($) {
             my $pp = $1;
             $on = ($pp =~ /^$path/);
             if (! $on && $module eq 'target') {
+                # special exception for this module.. generated file includes
+                # macro that generates the contents of several functions.
                 $on = ($pp =~ /Targets\.def$/);
                 if ($on) {
                     # skip annoying repeated comments
@@ -223,6 +321,28 @@ EOF
     print $wfh join("", @{$out{'body'}});
     print $wfh "\n} // end extern C";
     print $wfh join("", @{$out{'fwds'}});
+    close $wfh;
+
+    # now output wrapped classes if there are any
+    return unless %{$out{'classes'}};
+
+    my $ooModule = $module . '_obj';
+    $extra =~ s/;/_obj;/; # same includes but _obj versions
+    open my $wfh, '>', "$outdir/$ooModule.d"
+        or die "could not open file for write";
+
+    print $wfh <<EOF
+// this is a generated file, please do not edit it
+module bustin.gen.$ooModule;
+import bustin.gen.$module;
+$extra
+EOF
+    ;
+
+    while (my ($name, $meta) = each %{$out{'classes'}}) {
+        output_class $wfh, $name, $meta;
+    }
+    close $wfh;
 }
 
 @ARGV = ('core', 'execution_engine', 'target') unless @ARGV;
