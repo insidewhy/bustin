@@ -74,7 +74,7 @@ my %class = (
     Use => {},
     Type => {},
     Module => {
-        method_name => subout('Module'),
+        method_name => subout('(?:For)?Module'),
     },
     StructType => {
         parent => 'Type',
@@ -92,6 +92,7 @@ my %class = (
         parent => 'Type',
         method_name => subout('Function'),
     },
+    PassManager => {},
 );
 
 # metadata about methods
@@ -111,12 +112,19 @@ sub clean_types($) {
     return $_;
 }
 
+# iterate over arguments in array
+sub foreach_arg {
+    my ($param, $sub) = @_;
+    while ($param =~ /(\w+)(?:, ?| = [^,]+|$|\[\])/g) { $sub->($1); }
+}
+
 # takes a parameter list string and returns a list of just the arguments
 # without the types also as a string
 sub get_fwd_args($) {
     my $param = shift;
     my @argNames;
-    while ($param =~ /(\w+)(?:, ?| = [^,]+|$|\[\])/g) { push @argNames, $1; }
+    # while ($param =~ /(\w+)(?:, ?| = [^,]+|$|\[\])/g) { push @argNames, $1; }
+    foreach_arg($param, sub { push @argNames, $1; });
     return join ', ', @argNames;
 }
 
@@ -197,6 +205,9 @@ sub make_method($$$$;$) {
     }
     elsif ($param =~ /^LLVMModuleRef +M/) {
         $className = 'Module';
+    }
+    elsif ($param =~ /^LLVMPassManagerRef +\w+/) {
+        $className = 'PassManager';
     }
     return unless $className;
 
@@ -370,20 +381,20 @@ sub output_method($$$) {
     $fwdArgs .= ", $m->{fwdArgs}" if $m->{'fwdArgs'};
 
     my $ret = $m->{'ret'};
-    my $sfx;
+    my ($sfx, $prfx);
     if (my $origRet = $m->{'origRet'}) {
         if ($origRet eq 'LLVMBool') {
             $sfx = ' != 0';
             $ret = 'bool';
         }
         else {
-            # TODO: wrap return value in this case
-            $ret = $origRet;
+            $prfx = "new $ret(";
+            $sfx = ')';
         }
     }
 
     print $wfh "    $ret $name($m->{param}) {\n";
-        print $wfh "        return $m->{origName}($fwdArgs)$sfx;\n";
+        print $wfh "        return $prfx$m->{origName}($fwdArgs)$sfx;\n";
     print $wfh "    }\n\n";
     # ...
 }
