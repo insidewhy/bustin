@@ -17,13 +17,21 @@ sub subout($) {
     }
 }
 
-sub subout_pre_caps($) {
+sub subout_op($) {
     my $out = shift;
     return sub($) {
-        my $name = shift;
-        $name =~ s/^$out(.)/\l$1/;
+        my $name = subout($out)->(shift);
         $name =~ s/^(fP|gEP|nUW)/\u$1/;
         $name =~ s/^(switch|cast)/$out\u$1/;
+        return $name;
+    }
+}
+
+sub subout_global($) {
+    my $out = shift;
+    sub ($) {
+        my $name = subout($out)->(shift);
+        $name =~ s/delete/eraseFromParent/g; # like c++ version
         return $name;
     }
 }
@@ -31,31 +39,33 @@ sub subout_pre_caps($) {
 # metadata about classes
 my %class = (
     Context => {
-        method_name => subout('InContext')
+        method_name => subout('(?:In)?[Cc]ontext')
     },
     User => { parent => 'Value' },
+    Instruction => { parent => 'User' },
+    CallInst => { parent => 'Instruction' },
     Constant => {
         parent => 'User',
-        method_name => subout_pre_caps('const'),
+        method_name => subout_op('const'),
     },
     GlobalValue => {
         parent => 'Constant',
         method_name => subout('Global'),
     },
+    Function => {
+        parent => 'GlobalValue',
+        method_name => subout_global('Function'),
+    },
     GlobalVariable => {
         parent => 'GlobalValue',
-        method_name => sub ($) {
-            my $name = shift;
-            $name =~ s/delete/eraseFromParent/g; # like c++ version
-            subout('Global')->($name);
-        },
+        method_name => subout_global('Global'),
     },
     BasicBlock => {
         parent => 'Value',
         super => 'LLVMBasicBlockAsValue(c_)',
     },
     Builder => {
-        method_name => subout_pre_caps('build')
+        method_name => subout_op('build')
     },
     Value => {
         method_name => subout('[Vv]alue')
@@ -121,11 +131,20 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMValueRef +(ConstantVal|LHSConstant)/) {
         $className = 'Constant';
     }
-    elsif ($param =~ /^LLVMValueRef +(GlobalVar)/) {
+    elsif ($param =~ /^LLVMValueRef +GlobalVar/) {
         $className = 'GlobalVariable';
     }
-    elsif ($param =~ /^LLVMValueRef +(Global)/) {
+    elsif ($param =~ /^LLVMValueRef +Global/) {
         $className = 'GlobalValue';
+    }
+    elsif ($param =~ /^LLVMValueRef +Fn/) {
+        $className = 'Function';
+    }
+    elsif ($param =~ /^LLVMValueRef +(Instr|CallInst)/) {
+        $className = 'CallInst';
+    }
+    elsif ($param =~ /^LLVMValueRef +Inst/) {
+        $className = 'Instruction';
     }
     elsif ($param =~ /^LLVMBuilderRef +B/) {
         $className = 'Builder';
@@ -135,6 +154,9 @@ sub make_method($$$$;$) {
     }
     elsif ($param =~ /^LLVMTypeRef +\w+/) {
         $className = 'Type';
+    }
+    elsif ($param =~ /^LLVMContextRef +C/) {
+        $className = 'Context';
     }
     return unless $className;
 
@@ -192,6 +214,7 @@ sub make_function(\%$$$) {
     # type-only argument prototype interferes with argument forwarding,
     # although this will only be necessary if any forwarders are generated
     $param =~ s/LLVMBuilderRef,/LLVMBuilderRef B,/;
+    $param =~ s/LLVMAttribute(,|$)/LLVMAttribute A$1/;
 
     push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
 
@@ -351,10 +374,12 @@ sub output_class(\%$$) {
     else {
         print $wfh "    this(CType c_ = null) { super(c_); };\n\n";
     }
-    print $wfh "    bool empty() { return c != null; };\n\n";
 
-    while (my ($mName, $m) = each %{$clss->{'methods'}}) {
-        output_method $wfh, $mName, $m;
+    print $wfh "    bool empty() { return c != null; };\n\n" unless $parent;
+
+    my $methods = $clss->{'methods'};
+    foreach my $mName (sort keys %$methods) {
+        output_method $wfh, $mName, $methods->{$mName};
     }
 
     print $wfh "}\n";
