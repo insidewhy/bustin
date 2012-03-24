@@ -62,7 +62,8 @@ my %class = (
     },
     BasicBlock => {
         parent => 'Value',
-        super => 'LLVMBasicBlockAsValue(c_)',
+        method_name => subout_global('[bB]asicBlock'),
+        super => 'LLVMBasicBlockAsValue(c)',
     },
     Builder => {
         method_name => subout_op('build')
@@ -72,6 +73,9 @@ my %class = (
     },
     Use => {},
     Type => {},
+    Module => {
+        method_name => subout('Module'),
+    },
     StructType => {
         parent => 'Type',
         method_name => subout('[Ss]truct'),
@@ -83,6 +87,10 @@ my %class = (
     RealType => {
         parent => 'Type',
         method_name => subout('Real'),
+    },
+    FunctionType => {
+        parent => 'Type',
+        method_name => subout('Function'),
     },
 );
 
@@ -146,6 +154,9 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMValueRef +GlobalVar/) {
         $className = 'GlobalVariable';
     }
+    elsif ($param =~ /^LLVMBasicBlockRef +\w+/) {
+        $className = 'BasicBlock';
+    }
     elsif ($param =~ /^LLVMValueRef +Global/) {
         $className = 'GlobalValue';
     }
@@ -164,7 +175,9 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMUseRef +U/) {
         $className = 'Use';
     }
-    elsif ($param =~ /^LLVMTypeRef StructTy/) {
+    elsif ($origName eq  'LLVMGetStructName' ||
+           $param =~ /^LLVMTypeRef StructTy/)
+    {
         $className = 'StructType';
     }
     elsif ($param =~ /^LLVMTypeRef IntTy/) {
@@ -173,11 +186,17 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMTypeRef RealTy/) {
         $className = 'RealType';
     }
+    elsif ($param =~ /^LLVMTypeRef FunctionTy/) {
+        $className = 'FunctionType';
+    }
     elsif ($param =~ /^LLVMTypeRef +\w+/) {
         $className = 'Type';
     }
     elsif ($param =~ /^LLVMContextRef +C/) {
         $className = 'Context';
+    }
+    elsif ($param =~ /^LLVMModuleRef +M/) {
+        $className = 'Module';
     }
     return unless $className;
 
@@ -378,8 +397,8 @@ sub output_class(\%$$) {
 
     my $meta = $class{$name};
     my $parent = $meta->{'parent'};
-    my $realPar = $meta->{'real_parent'};
-    my $llvmType = ! $realPar && $parent ? $parent : $name;
+    my $super = $meta->{'super'};
+    my $llvmType = ! $super && $parent ? $parent : $name;
 
     if ($parent) {
         output_class($classes, $wfh, $parent);
@@ -388,10 +407,18 @@ sub output_class(\%$$) {
     else { $parent = ''; }
 
     print $wfh "\nclass $name$parent {\n";
-    if (! $parent || $realPar) {
+    if (! $parent || $super) {
         print $wfh "    alias LLVM${llvmType}Ref CType;\n\n";
         print $wfh "    CType c;\n\n";
-        print $wfh "    this(CType c_ = null) { c = c_; };\n\n";
+        if ($super) {
+            print $wfh "    this(CType c_ = null) {\n";
+            print $wfh "        c = c_;\n";
+            print $wfh "        super($super);\n";
+            print $wfh "    };\n\n";
+        }
+        else {
+            print $wfh "    this(CType c_ = null) { c = c_; };\n\n";
+        }
     }
     else {
         print $wfh "    this(CType c_ = null) { super(c_); };\n\n";
