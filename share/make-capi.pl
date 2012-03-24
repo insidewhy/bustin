@@ -21,6 +21,20 @@ my %class = (
     },
     BasicBlock => {
         parent => 'Value',
+        method_name => sub ($) {
+            my $name = shift;
+            $name =~ s/Value//;
+            return $name;
+        }
+    },
+    Builder => {
+        method_name => sub ($) {
+            my $name = shift;
+            $name =~ s/^build(.)/\l$1/;
+            $name =~ s/^(fP|gEP|nUW)/\u$1/;
+            $name =~ s/^(switch|cast)/build\u$1/;
+            return $name;
+        },
     },
 );
 
@@ -78,10 +92,15 @@ sub make_method($$$$;$) {
     return unless $className;
 
     my $methods = get_methods %$out, $className;
+
     # remove first argument
     foreach (($param, $fwdArgs)) { s/^[^,]+(?:,|$) *//g; }
-    (my $name = $origName) =~ s/^LLVM//;
-    # TODO: more substitutions on name?
+    (my $name = $origName) =~ s/^LLVM(.)/\l$1/;
+
+    # custom substitutions on name
+    if (my $method_name = $class{$className}{'method_name'}) {
+        $name = &$method_name($name);
+    }
 
     # TODO: substitutute LLVM/Ref out of parameter types
     my $m = $methods->{$name} = {
@@ -225,7 +244,6 @@ sub output_method($$$) {
     my ($wfh, $name, $m) = @_;
 
     # simplify these.. no need to return value cast itself
-    $name = lcfirst $name;
     if ($name =~ /^isA/) {
         print $wfh "    bool $name($m->{param}) {\n";
         print $wfh "        return $m->{origName}(c) != null;\n";
