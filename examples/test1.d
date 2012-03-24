@@ -1,5 +1,5 @@
 import bustin.capi.core;
-// import bustin.core;
+import bustin.core;
 
 int main() {
     auto ctxt = LLVMGetGlobalContext();

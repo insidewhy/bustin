@@ -8,15 +8,26 @@ use strict;
 my $basedir = '/usr/include/llvm-c/';
 my $outdir = './gen/';
 
-my $no_optional_name = 'BuildGlobalString|Name|AddGlobal|SetGC|AddAlias$';
-
 # metadata about classes
 my %class = (
     Context => {
-        subout => 'InContext'
+        subout => 'InContext',
+    },
+    User => {
+        parent => 'Value',
+    },
+    Constant => {
+        parent => 'User',
+    },
+    BasicBlock => {
+        parent => 'Value',
     },
 );
 
+# metadata about methods
+my $no_optional_name = 'BuildGlobalString|Name|AddGlobal|SetGC|AddAlias$';
+
+# turn c types into equivalent d types
 sub clean_types($) {
     my $_ = shift;
     s/unsigned long long/ulong/g;
@@ -29,6 +40,8 @@ sub clean_types($) {
     return $_;
 }
 
+# takes a parameter list string and returns a list of just the arguments
+# without the types also as a string
 sub get_fwd_args($) {
     my $param = shift;
     my @argNames;
@@ -36,6 +49,7 @@ sub get_fwd_args($) {
     return join ', ', @argNames;
 }
 
+# get a pointer to the method list of a class
 sub get_methods(\%$) {
     my ($out, $clss) = @_;
 
@@ -45,9 +59,11 @@ sub get_methods(\%$) {
     return $out->{'classes'}{$clss}{'methods'};
 }
 
-# tries to make a d wrapper method from a known function
+# takes a c method description and sees if it can fit it into one of the
+# object oriented wrapper classes as a method.
 sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
+    # fwdArgs = how to forwards arguments from D to C in method body
 
     $fwdArgs = get_fwd_args $param unless $fwdArgs;
 
@@ -55,6 +71,9 @@ sub make_method($$$$;$) {
     my $className;
     if ($param =~ /^LLVMValueRef +Val/) {
         $className = 'Value';
+    }
+    elsif ($param =~ /^LLVMBuilderRef +B/) {
+        $className = 'Builder';
     }
     return unless $className;
 
@@ -84,6 +103,10 @@ sub make_method($$$$;$) {
     $m->{'ret'} = $ret;
 }
 
+# scans a function and detect if it can make any of the arguments optional
+# automatically, then stores it for output to the body of the capi module.
+# potentially makes a second wrapper method which will convert d
+# strings/arrays into underlying pointer + length arguments.
 sub make_function(\%$$$) {
     my ($out, $ret, $name, $param) = @_;
     $ret =~ s/^const char/constchar/g; # d return type problem with const char
@@ -126,13 +149,15 @@ sub make_function(\%$$$) {
     }
 
     $param =~ s/\Q$mod\E/$dType $ptrName/g;
+    $fwdArgs =~ s/$ptrName, \w+/$ptrName.ptr, cast(uint)$ptrName.length/;
+
     make_method $out, $ret, $name, $param, $fwdArgs;
 
-    $fwdArgs =~ s/$ptrName, \w+/$ptrName.ptr, cast(uint)$ptrName.length/;
     push @{$out->{'fwds'}},
          "\n\n$ret$name($param) {\n    return $name($fwdArgs);\n}";
 }
 
+# tries to match one or more c functions, returning false if it doesn't.
 sub match_functions($\%$) {
     my ($fh, $out, $_) = @_;
     return 0 unless /((?:\w\s*)+[*\s])(\w+)\((.*)/;
@@ -167,6 +192,8 @@ sub match_functions($\%$) {
     return 1;
 }
 
+# match c enum or return false. modifies enum options to remove prefixes
+# as d scopes them inside the name of the enum.
 sub match_enum($\%$) {
     my ($fh, $out, $_) = @_;
     return 0 unless /typedef enum/;
@@ -193,6 +220,7 @@ sub match_enum($\%$) {
     push @{$out->{'body'}}, "}\n";
 }
 
+# output method parsed from file earlier into current class being output
 sub output_method($$$) {
     my ($wfh, $name, $m) = @_;
 
@@ -227,6 +255,8 @@ sub output_method($$$) {
     # ...
 }
 
+# output class parsed from file earlier into object oriented wrapper module
+# currently being output
 sub output_class($$$) {
     my ($wfh, $name, $meta) = @_;
     return if ($meta->{'done'});
@@ -248,6 +278,12 @@ sub output_class($$$) {
     $meta->{'done'} = 1;
 }
 
+# convert a llvm-c/${Module_name}.c file into
+#     gen/${module_name}.d
+#         wraps the capi directly with a few additonal forwarding helpers
+#         for things like arrays and strings.
+#     gen/${module_name}_obj.d
+#         d object oriented wrapper to recreate c++ API a bit.
 sub gen_module($) {
     my $module = shift;
     my %out = (
@@ -345,5 +381,6 @@ EOF
     close $wfh;
 }
 
+# first line of code run
 @ARGV = ('core', 'execution_engine', 'target') unless @ARGV;
 foreach (@ARGV) { gen_module $_; }
