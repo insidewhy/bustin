@@ -8,10 +8,19 @@ use strict;
 my $basedir = '/usr/include/llvm-c/';
 my $outdir = './gen/';
 
+sub subout($) {
+    my $out = shift;
+    return sub($) {
+        my $name = shift;
+        $name =~ s/$out(.?)/\l$1/;
+        return $name;
+    }
+}
+
 # metadata about classes
 my %class = (
     Context => {
-        subout => 'InContext',
+        method_name => subout('InContext')
     },
     User => {
         parent => 'Value',
@@ -21,11 +30,6 @@ my %class = (
     },
     BasicBlock => {
         parent => 'Value',
-        method_name => sub ($) {
-            my $name = shift;
-            $name =~ s/Value//;
-            return $name;
-        }
     },
     Builder => {
         method_name => sub ($) {
@@ -35,6 +39,9 @@ my %class = (
             $name =~ s/^(switch|cast)/build\u$1/;
             return $name;
         },
+    },
+    Value => {
+        method_name => subout('[Vv]alue')
     },
 );
 
