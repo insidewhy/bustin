@@ -140,6 +140,32 @@ sub get_methods(\%$) {
 
 # takes a c method description and sees if it can fit it into one of the
 # object oriented wrapper classes as a method.
+sub make_method_arguments($$) {
+    my ($param, $fwdArgs) = @_;
+
+    while ($param =~ /(LLVM(\w+)Ref) (\w+)/g) {
+        my ($cType, $clss, $arg) = ($1, $2, $3);
+        $fwdArgs =~ s/$arg/$&.c/g;
+
+        # TODO: there are more exceptions
+        if ($clss eq 'Value') {
+            if ($arg eq 'Global') {
+                $clss = 'GlobalVariable';
+            }
+            elsif ($arg eq 'Fn') {
+                $clss = 'Function';
+            }
+            elsif ($arg eq 'RHSConstant' || $arg eq 'ConstantVal') {
+                $clss = 'Constant';
+            }
+        }
+
+        $param =~ s/$cType/$clss/;
+    }
+
+    return ($param, $fwdArgs);
+}
+
 sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
     # fwdArgs = how to forwards arguments from D to C in method body
@@ -224,6 +250,8 @@ sub make_method($$$$;$) {
     $name =~ s/^const$/$&_/g;
 
     # TODO: substitutute LLVM/Ref out of parameter types
+
+    my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
     my $m = $methods->{$name} = {
         param    => $param,
         fwdArgs  => $fwdArgs,
