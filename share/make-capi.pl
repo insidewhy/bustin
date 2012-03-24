@@ -17,29 +17,33 @@ sub subout($) {
     }
 }
 
+sub subout_pre_caps($) {
+    my $out = shift;
+    return sub($) {
+        my $name = shift;
+        $name =~ s/^$out(.)/\l$1/;
+        $name =~ s/^(fP|gEP|nUW)/\u$1/;
+        $name =~ s/^(switch|cast)/$out\u$1/;
+        return $name;
+    }
+}
+
 # metadata about classes
 my %class = (
     Context => {
         method_name => subout('InContext')
     },
-    User => {
-        parent => 'Value',
-    },
+    User => { parent => 'Value' },
     Constant => {
         parent => 'User',
+        method_name => subout_pre_caps('const')
     },
     BasicBlock => {
         parent => 'Value',
         super => 'LLVMBasicBlockAsValue(c_)'
     },
     Builder => {
-        method_name => sub ($) {
-            my $name = shift;
-            $name =~ s/^build(.)/\l$1/;
-            $name =~ s/^(fP|gEP|nUW)/\u$1/;
-            $name =~ s/^(switch|cast)/build\u$1/;
-            return $name;
-        },
+        method_name => subout_pre_caps('build')
     },
     Value => {
         method_name => subout('[Vv]alue')
@@ -96,8 +100,14 @@ sub make_method($$$$;$) {
 
     # print STDERR "candid $ret$name($param) { $fwdArgs; }\n";
     my $className;
-    if ($param =~ /^LLVMValueRef +Val/) {
+    if ($origName =~ /^LLVM(GetOperand|SetOperand|GetNumOperands)$/) {
+        $className = 'User';
+    }
+    elsif ($param =~ /^LLVMValueRef +Val/) {
         $className = 'Value';
+    }
+    elsif ($param =~ /^LLVMValueRef +(ConstantVal|LHSConstant)/) {
+        $className = 'Constant';
     }
     elsif ($param =~ /^LLVMBuilderRef +B/) {
         $className = 'Builder';
@@ -300,10 +310,14 @@ sub output_method($$$) {
 # currently being output
 sub output_class(\%$$) {
     my ($classes, $wfh, $name) = @_;
-    my $meta = $classes->{$name};
-    return if $meta->{'done'};
+    my $clss = $classes->{$name};
+    return if $clss->{'done'};
 
-    my $parent = $class{$name}{'parent'};
+    my $meta = $class{$name};
+    my $parent = $meta->{'parent'};
+    my $realPar = $meta->{'real_parent'};
+    my $llvmType = ! $realPar && $parent ? $parent : $name;
+
     if ($parent) {
         output_class($classes, $wfh, $parent);
         $parent = " : $parent";
@@ -311,16 +325,21 @@ sub output_class(\%$$) {
     else { $parent = ''; }
 
     print $wfh "\nclass $name$parent {\n";
-    print $wfh "    alias LLVM${name}Ref CType;\n\n";
-    print $wfh "    CType c;\n\n";
-    print $wfh "    this(CType c_) { c = c_; };\n\n";
+    if (! $parent || $realPar) {
+        print $wfh "    alias LLVM${llvmType}Ref CType;\n\n";
+        print $wfh "    CType c;\n\n";
+        print $wfh "    this(CType c_) { c = c_; };\n\n";
+    }
+    else {
+        print $wfh "    this(CType c_) { super(c_); };\n\n";
+    }
 
-    while (my ($mName, $m) = each %{$meta->{'methods'}}) {
+    while (my ($mName, $m) = each %{$clss->{'methods'}}) {
         output_method $wfh, $mName, $m;
     }
 
-    print $wfh "\n}\n";
-    $meta->{'done'} = 1;
+    print $wfh "}\n";
+    $clss->{'done'} = 1;
 }
 
 # convert a llvm-c/${Module_name}.c file into
@@ -421,7 +440,7 @@ EOF
     ;
 
     my $classes = $out{'classes'};
-    while (my ($name, $meta) = each %$classes) {
+    while (my ($name, $clss) = each %$classes) {
         output_class %$classes, $wfh, $name;
     }
     close $wfh;
