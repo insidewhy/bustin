@@ -63,7 +63,7 @@ my %class = (
     BasicBlock => {
         parent => 'Value',
         method_name => subout_global('[bB]asicBlock'),
-        super => 'LLVMBasicBlockAsValue(c)',
+        no_constructor => 1,
     },
     Builder => {
         method_name => subout_op('build|Builder')
@@ -482,27 +482,20 @@ sub output_class(\%$$) {
 
     my $meta = $class{$name};
     my $parent = $meta->{'parent'};
-    my $super = $meta->{'super'};
-    my $llvmType = ! $super && $parent ? $parent : $name;
+    my $llvmType = $parent || $name;
 
     output_class($classes, $wfh, $parent) if ($parent);
 
     print $wfh "\ntemplate ${name}Mixin() {\n";
-    if (! $parent || $super) {
+    if (! $parent) {
         print $wfh "    alias LLVM${llvmType}Ref CType;\n\n";
         print $wfh "    CType c;\n\n";
-        if ($super) {
-            print $wfh "    this(CType c_ = null) {\n";
-            print $wfh "        c = c_;\n";
-            print $wfh "        super($super);\n";
-            print $wfh "    };\n\n";
-        }
-        else {
-            print $wfh "    this(CType c_ = null) { c = c_; };\n\n";
-        }
+        print $wfh "    this(CType c_ = null) { c = c_; };\n\n"
+            unless $meta->{'no_constructor'};
     }
     else {
-        print $wfh "    this(CType c_ = null) { super(c_); };\n\n";
+        print $wfh "    this(CType c_ = null) { super(c_); };\n\n"
+            unless $meta->{'no_constructor'};
     }
 
     print $wfh "    bool empty() { return c != null; };\n\n" unless $parent;

@@ -61,7 +61,14 @@ class Use {
 }
 
 class BasicBlock : Value {
+    alias LLVMBasicBlockRef CType;
+    CType c;
     mixin BasicBlockMixin;
+
+    this(CType c_ = null) {
+        c = c_;
+        super(LLVMBasicBlockAsValue(c));
+    };
 }
 
 class IntegerType : Type {
@@ -85,3 +92,5 @@ class GlobalVariable : GlobalValue {
 class RealType : Type {
     mixin RealTypeMixin;
 }
+
+alias LLVMLinkage Linkage;

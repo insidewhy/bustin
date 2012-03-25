@@ -22,8 +22,7 @@ int main() {
     pumpTypes[0] = intTy.c;
 
     auto pumpFun = mod.addFunction("pump", voidTy.functionType(pumpTypes));
-    auto pumpBlock = pumpFun.appendBasicBlock;
-    builder.positionAtEnd(pumpBlock);
+    builder.positionAtEnd(pumpFun.appendBasicBlock);
     auto v1stack = builder.alloca(intTy, "fruitbat");
     auto v1 = intTy.const_(14);
     auto ret1 = builder.add(pumpFun.getParam(0), v1);
@@ -32,15 +31,13 @@ int main() {
     builder.retVoid;
 
     auto mainFun = mod.addFunction("main", intTy.functionType(null));
-    auto mainBlock = mainFun.appendBasicBlock;
-    builder.positionAtEnd(mainBlock);
+    builder.positionAtEnd(mainFun.appendBasicBlock);
 
     auto constStr = ctxt.constString("punkso");
-
     auto glob = mod.addGlobal(constStr.typeOf, "punkStr");
     glob.setInitializer(constStr);
     glob.setConstant(true);
-    glob.setLinkage(LLVMLinkage.Internal);
+    glob.setLinkage(Linkage.Internal);
 
     LLVMValueRef idx[2];
     idx[0] = LLVMConstInt(intTy.c, 0);
