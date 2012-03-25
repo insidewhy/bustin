@@ -2,12 +2,12 @@ import bustin.capi.core;
 import bustin.core;
 
 int main() {
-    auto ctxt = new Context(LLVMGetGlobalContext());
-    auto builder = ctxt.createBuilder();
-    auto mod = new Module(LLVMModuleCreateWithNameInContext("test1", ctxt.c));
+    auto ctxt = getGlobalContext;
+    auto builder = ctxt.createBuilder;
+    auto mod = new Module("test1", ctxt);
 
-    auto voidTy = ctxt.voidType();
-    auto intTy = ctxt.int32Type();
+    auto voidTy = ctxt.voidType;
+    auto intTy = ctxt.int32Type;
 
     ////////////////////////////////////////////////////////////////////////
     // reference to external puts function from c library
@@ -22,19 +22,17 @@ int main() {
     pumpTypes[0] = intTy.c;
 
     auto pumpFun = mod.addFunction("pump", voidTy.functionType(pumpTypes));
-    auto pumpBlock = pumpFun.appendBasicBlock();
+    auto pumpBlock = pumpFun.appendBasicBlock;
     builder.positionBuilderAtEnd(pumpBlock);
     auto v1stack = builder.alloca(intTy, "fruitbat");
     auto v1 = intTy.const_(14);
     auto ret1 = builder.add(pumpFun.getParam(0), v1);
     auto ret2 = builder.add(ret1, v1);
     builder.store(ret2, v1stack);
-    // TODO: put it or something
-    LLVMBuildRetVoid(builder.c);
+    builder.retVoid;
 
-    auto mainFun = mod.addFunction(
-        "main", intTy.functionType(null));
-    auto mainBlock = mainFun.appendBasicBlock();
+    auto mainFun = mod.addFunction("main", intTy.functionType(null));
+    auto mainBlock = mainFun.appendBasicBlock;
     builder.positionBuilderAtEnd(mainBlock);
 
     auto constStr = ctxt.constString("punkso");
@@ -52,7 +50,6 @@ int main() {
     args[0] = builder.GEP(glob, idx).c;
 
     builder.call(putsFun, args, "");
-
     builder.ret(intTy.const_(0));
 
     mod.dump();

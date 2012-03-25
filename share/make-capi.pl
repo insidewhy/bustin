@@ -129,13 +129,15 @@ sub get_fwd_args($) {
 }
 
 # get a pointer to the method list of a class
-sub get_methods(\%$) {
-    my ($out, $clss) = @_;
+sub get_class(\%$) {
+    my ($out, $name) = @_;
 
-    if (! $out->{'classes'}{$clss}) {
-        $out->{'classes'}{$clss} = { 'methods' => {} };
+    if (! $out->{'classes'}{$name}) {
+        $out->{'classes'}{$name} = {
+            methods => [], factories => [], constructors => []
+        };
     }
-    return $out->{'classes'}{$clss}{'methods'};
+    return $out->{'classes'}{$name};
 }
 
 # takes a c method description and sees if it can fit it into one of the
@@ -194,15 +196,65 @@ sub make_method_return($$) {
     }
 }
 
+# attempt to make a constructor for a class otherwise return 0
+sub make_constructor($$$$;$) {
+    my ($out, $ret, $name, $param, $fwdArgs) = @_;
+    return 0 unless $name eq 'LLVMModuleCreateWithNameInContext';
+
+    $ret =~ s/^LLVM//;
+    $ret =~ s/Ref$//;
+
+    my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
+    my $constructors = get_class(%$out, $ret)->{'constructors'};
+
+    push @$constructors, {
+        name     => $name,
+        param    => $param,
+        fwdArgs  => $fwdArgs,
+    };
+    return 1;
+}
+
+# attempt to make a factory for a class otherwise return 0
+sub make_factory($$$$;$) {
+    my ($out, $ret, $origName, $param, $fwdArgs) = @_;
+
+    my $name;
+    if ($origName eq 'LLVMGetGlobalContext') {
+        $name = 'getGlobalContext';
+    }
+
+    return unless $name;
+
+    $ret =~ s/^LLVM//;
+    $ret =~ s/Ref$//;
+
+    my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
+    my $factories = get_class(%$out, $ret)->{'factories'};
+
+    push @$factories, {
+        name     => $name,
+        param    => $param,
+        fwdArgs  => $fwdArgs,
+        origName => $origName,
+    };
+    return 1;
+}
+
+# attempt to make a method or factory
 sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
+    $ret =~ s/ +$//;
+
     # fwdArgs = how to forwards arguments from D to C in method body
 
     return if $origName =~ /$not_method/;
 
     $fwdArgs = get_fwd_args $param unless $fwdArgs;
 
-    # print STDERR "candid $ret$name($param) { $fwdArgs; }\n";
+    return if make_constructor $out, $ret, $origName, $param, $fwdArgs;
+    return if make_factory $out, $ret, $origName, $param, $fwdArgs;
+
     my $className;
     if ($origName =~ /^LLVM(GetOperand|SetOperand|GetNumOperands)$/) {
         $className = 'User';
@@ -265,7 +317,7 @@ sub make_method($$$$;$) {
     }
     return unless $className;
 
-    my $methods = get_methods %$out, $className;
+    my $methods = get_class(%$out, $className)->{'methods'};
 
     # remove first argument
     foreach (($param, $fwdArgs)) { s/^[^,]+(?:,|$) *//g; }
@@ -280,14 +332,13 @@ sub make_method($$$$;$) {
     # TODO: substitutute LLVM/Ref out of parameter types
 
     my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
-    my $m = $methods->{$name} = {
+    my $m = {
+        name     => $name,
         param    => $param,
         fwdArgs  => $fwdArgs,
         origName => $origName,
     };
-
-    # deal with return type
-    $ret =~ s/ +$//;
+    push @$methods, $m;
 
     my $newRet = make_method_return $name, $ret;
     if (! $newRet) {
@@ -321,7 +372,7 @@ sub make_function(\%$$$) {
 
     # type-only argument prototype interferes with argument forwarding,
     # although this will only be necessary if any forwarders are generated
-    $param =~ s/LLVMBuilderRef,/LLVMBuilderRef B,/;
+    $param =~ s/LLVMBuilderRef(,|$)/LLVMBuilderRef B$1/;
     $param =~ s/LLVMAttribute(,|$)/LLVMAttribute A$1/;
 
     push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
@@ -422,8 +473,9 @@ sub match_enum($\%$) {
 }
 
 # output method parsed from file earlier into current class being output
-sub output_method($$$) {
-    my ($wfh, $name, $m) = @_;
+sub output_method($$) {
+    my ($wfh, $m) = @_;
+    my $name = $m->{'name'};
 
     if ($name =~ /^isA/) {
         # TODO: cast to underlying type
@@ -453,6 +505,22 @@ sub output_method($$$) {
         print $wfh "        return $prfx$m->{origName}($fwdArgs)$sfx;\n";
     print $wfh "    }\n\n";
     # ...
+}
+
+sub output_constructor($$) {
+    my ($wfh, $c) = @_;
+
+    print $wfh "    this($c->{param}) {\n";
+    print $wfh "        c = $c->{name}($c->{fwdArgs});\n";
+    print $wfh "    }\n\n";
+}
+
+sub output_factory($$$) {
+    my ($wfh, $className, $f) = @_;
+
+    print $wfh "\n$className $f->{name}($f->{param}) {\n";
+    print $wfh "    return new $className($f->{origName}($f->{fwdArgs}));\n";
+    print $wfh "}\n";
 }
 
 # output class parsed from file earlier into object oriented wrapper module
@@ -493,12 +561,19 @@ sub output_class(\%$$) {
 
     print $wfh "    bool empty() { return c != null; };\n\n" unless $parent;
 
+    my $constructors = $clss->{'constructors'};
+    foreach (@$constructors) { output_constructor $wfh, $_; }
+
     my $methods = $clss->{'methods'};
-    foreach my $mName (sort keys %$methods) {
-        output_method $wfh, $mName, $methods->{$mName};
-    }
+    foreach (@$methods) { output_method $wfh, $_; }
 
     print $wfh "}\n";
+
+    my $factories = $clss->{'factories'};
+    foreach my $factory (@$factories) {
+        output_factory $wfh, $name, $factory;
+    }
+
     $clss->{'done'} = 1;
 }
 
