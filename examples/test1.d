@@ -23,7 +23,7 @@ int main() {
 
     auto pumpFun = mod.addFunction("pump", voidTy.functionType(pumpTypes));
     auto pumpBlock = pumpFun.appendBasicBlock;
-    builder.positionBuilderAtEnd(pumpBlock);
+    builder.positionAtEnd(pumpBlock);
     auto v1stack = builder.alloca(intTy, "fruitbat");
     auto v1 = intTy.const_(14);
     auto ret1 = builder.add(pumpFun.getParam(0), v1);
@@ -33,7 +33,7 @@ int main() {
 
     auto mainFun = mod.addFunction("main", intTy.functionType(null));
     auto mainBlock = mainFun.appendBasicBlock;
-    builder.positionBuilderAtEnd(mainBlock);
+    builder.positionAtEnd(mainBlock);
 
     auto constStr = ctxt.constString("punkso");
 
@@ -49,7 +49,7 @@ int main() {
     LLVMValueRef args[1];
     args[0] = builder.GEP(glob, idx).c;
 
-    builder.call(putsFun, args, "");
+    builder.call(putsFun, args);
     builder.ret(intTy.const_(0));
 
     mod.dump();

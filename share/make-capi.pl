@@ -66,7 +66,7 @@ my %class = (
         super => 'LLVMBasicBlockAsValue(c)',
     },
     Builder => {
-        method_name => subout_op('build')
+        method_name => subout_op('build|Builder')
     },
     Value => {
         method_name => subout('[Vv]alue')
