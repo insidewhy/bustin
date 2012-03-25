@@ -2,6 +2,16 @@ module bustin.core;
 import bustin.gen.core;
 import bustin.gen.core_obj;
 
+alias LLVMLinkage            Linkage;
+alias LLVMTypeKind           TypeKind;
+alias LLVMVisibility         Visibility;
+alias LLVMCallConv           CallConv;
+alias LLVMIntPredicate       IntPredicate;
+alias LLVMRealPredicate      RealPredicate;
+alias LLVMLandingPadClauseTy LandingPadClauseTy;
+alias LLVMAttribute          Attribute;
+alias LLVMOpcode             Opcode;
+
 class Value {
     mixin ValueMixin;
 }
@@ -82,6 +92,9 @@ Context getGlobalContext() { return new Context(LLVMGetGlobalContext()); }
 
 class Builder {
     mixin BuilderMixin;
+
+    // c++ uses this
+    auto createRet(Value v) { return ret(v); }
 }
 
 class Module {
@@ -97,5 +110,3 @@ class Module {
 class PassManager {
     mixin PassManagerMixin;
 }
-
-alias LLVMLinkage Linkage;
