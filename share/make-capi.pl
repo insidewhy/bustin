@@ -166,6 +166,34 @@ sub make_method_arguments($$) {
     return ($param, $fwdArgs);
 }
 
+sub make_method_return($$) {
+    my ($name, $ret) = @_;
+    if ($name eq 'functionType') {
+        return 'FunctionType';
+    }
+    elsif ($name eq 'addFunction') {
+        return 'Function';
+    }
+    elsif ($name eq 'addGlobal') {
+        return 'GlobalVariable';
+    }
+    elsif ($name =~ /^const/) {
+        return 'Constant';
+    }
+    elsif ($name =~ 'int\d+Type') {
+        return 'IntegerType';
+    }
+    elsif ($ret =~ /^LLVM(\w+)Ref$/) {
+        return $1;
+    }
+    elsif ($ret =~ /^LLVMBool$/) {
+        return 'bool';
+    }
+    else {
+        return undef
+    }
+}
+
 sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
     # fwdArgs = how to forwards arguments from D to C in method body
@@ -260,15 +288,15 @@ sub make_method($$$$;$) {
 
     # deal with return type
     $ret =~ s/ +$//;
-    if ($ret =~ /^LLVM(\w+)Ref$/) {
-        $ret = $1;
-        $m->{'origRet'} = $&;
+
+    my $newRet = make_method_return $name, $ret;
+    if (! $newRet) {
+        $m->{'ret'} = $ret;
     }
-    elsif ($ret =~ /^LLVMBool$/) {
-        $ret = 'bool';
-        $m->{'origRet'} = 'LLVMBool';
+    else {
+        $m->{'origRet'} = $ret;
+        $m->{'ret'} = $newRet;
     }
-    $m->{'ret'} = $ret;
 }
 
 # scans a function and detect if it can make any of the arguments optional
