@@ -22,7 +22,7 @@ sub subout_op($) {
     return sub($) {
         my $name = subout($out)->(shift);
         $name =~ s/^(fP|gEP|nUW)/\u$1/;
-        $name =~ s/^(switch|cast)/$out\u$1/;
+        $name =~ s/^(switch|cast)/$1_/;
         return $name;
     }
 }
@@ -133,9 +133,7 @@ sub get_class(\%$) {
     my ($out, $name) = @_;
 
     if (! $out->{'classes'}{$name}) {
-        $out->{'classes'}{$name} = {
-            methods => [], factories => [], constructors => []
-        };
+        $out->{'classes'}{$name} = { methods => [] };
     }
     return $out->{'classes'}{$name};
 }
@@ -196,51 +194,6 @@ sub make_method_return($$) {
     }
 }
 
-# attempt to make a constructor for a class otherwise return 0
-sub make_constructor($$$$;$) {
-    my ($out, $ret, $name, $param, $fwdArgs) = @_;
-    return 0 unless $name eq 'LLVMModuleCreateWithNameInContext';
-
-    $ret =~ s/^LLVM//;
-    $ret =~ s/Ref$//;
-
-    my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
-    my $constructors = get_class(%$out, $ret)->{'constructors'};
-
-    push @$constructors, {
-        name     => $name,
-        param    => $param,
-        fwdArgs  => $fwdArgs,
-    };
-    return 1;
-}
-
-# attempt to make a factory for a class otherwise return 0
-sub make_factory($$$$;$) {
-    my ($out, $ret, $origName, $param, $fwdArgs) = @_;
-
-    my $name;
-    if ($origName eq 'LLVMGetGlobalContext') {
-        $name = 'getGlobalContext';
-    }
-
-    return unless $name;
-
-    $ret =~ s/^LLVM//;
-    $ret =~ s/Ref$//;
-
-    my ($param, $fwdArgs) = make_method_arguments $param, $fwdArgs;
-    my $factories = get_class(%$out, $ret)->{'factories'};
-
-    push @$factories, {
-        name     => $name,
-        param    => $param,
-        fwdArgs  => $fwdArgs,
-        origName => $origName,
-    };
-    return 1;
-}
-
 # attempt to make a method or factory
 sub make_method($$$$;$) {
     my ($out, $ret, $origName, $param, $fwdArgs) = @_;
@@ -251,9 +204,6 @@ sub make_method($$$$;$) {
     return if $origName =~ /$not_method/;
 
     $fwdArgs = get_fwd_args $param unless $fwdArgs;
-
-    return if make_constructor $out, $ret, $origName, $param, $fwdArgs;
-    return if make_factory $out, $ret, $origName, $param, $fwdArgs;
 
     my $className;
     if ($origName =~ /^LLVM(GetOperand|SetOperand|GetNumOperands)$/) {
@@ -535,13 +485,9 @@ sub output_class(\%$$) {
     my $super = $meta->{'super'};
     my $llvmType = ! $super && $parent ? $parent : $name;
 
-    if ($parent) {
-        output_class($classes, $wfh, $parent);
-        $parent = " : $parent";
-    }
-    else { $parent = ''; }
+    output_class($classes, $wfh, $parent) if ($parent);
 
-    print $wfh "\nclass $name$parent {\n";
+    print $wfh "\ntemplate ${name}Mixin() {\n";
     if (! $parent || $super) {
         print $wfh "    alias LLVM${llvmType}Ref CType;\n\n";
         print $wfh "    CType c;\n\n";
@@ -561,18 +507,10 @@ sub output_class(\%$$) {
 
     print $wfh "    bool empty() { return c != null; };\n\n" unless $parent;
 
-    my $constructors = $clss->{'constructors'};
-    foreach (@$constructors) { output_constructor $wfh, $_; }
-
     my $methods = $clss->{'methods'};
     foreach (@$methods) { output_method $wfh, $_; }
 
     print $wfh "}\n";
-
-    my $factories = $clss->{'factories'};
-    foreach my $factory (@$factories) {
-        output_factory $wfh, $name, $factory;
-    }
 
     $clss->{'done'} = 1;
 }
