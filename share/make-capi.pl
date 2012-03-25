@@ -93,11 +93,20 @@ my %class = (
         method_name => subout('Function'),
     },
     PassManager => {},
+    # execution engine
+    GenericValue => {
+        method_name => subout('[Gg]enericValue'),
+    },
+    ExecutionEngine => {
+        method_name => subout('[Ee]xecutionEngine'),
+    },
+    # execution engine
+    TargetData => {},
 );
 
 # metadata about methods
 my $no_optional_name = 'BuildGlobalString|Name|AddGlobal|SetGC|AddAlias$';
-my $not_method = '[gG]enericValue|FunctionType';
+my $not_method = '[gG]enericValue(Of|To)|FunctionType|ModuleProvider';
 
 # turn c types into equivalent d types
 sub clean_types($) {
@@ -145,7 +154,7 @@ sub make_method_arguments($$) {
 
     while ($param =~ /(LLVM(\w+)Ref) (\w+)/g) {
         my ($cType, $clss, $arg) = ($1, $2, $3);
-        $fwdArgs =~ s/$arg/$&.c/g;
+        $fwdArgs =~ s/($arg)(,|$)/$1.c$2/;
 
         # TODO: there are more exceptions
         if ($clss eq 'Value') {
@@ -262,6 +271,15 @@ sub make_method($$$$;$) {
     elsif ($param =~ /^LLVMPassManagerRef +\w+/) {
         $className = 'PassManager';
     }
+    elsif ($param =~ /^LLVMGenericValueRef +\w+/) {
+        $className = 'GenericValue';
+    }
+    elsif ($param =~ /^LLVMExecutionEngineRef +\w+/) {
+        $className = 'ExecutionEngine';
+    }
+    elsif ($param =~ /^LLVMTargetDataRef +\w+/) {
+        $className = 'TargetData';
+    }
     return unless $className;
 
     my $methods = get_class(%$out, $className)->{'methods'};
@@ -321,6 +339,9 @@ sub make_function(\%$$$) {
     # although this will only be necessary if any forwarders are generated
     $param =~ s/LLVMBuilderRef(,|$)/LLVMBuilderRef B$1/;
     $param =~ s/LLVMAttribute(,|$)/LLVMAttribute A$1/;
+    $param =~ s/LLVMTargetDataRef(,|$)/LLVMTargetDataRef TD$1/;
+    $param =~ s/LLVMPassManagerRef(,|$)/LLVMPassManagerRef PM$1/;
+    $param =~ s/LLVMTypeRef(,|$)/LLVMTypeRef Ty$1/;
 
     push @{$out->{'body'}}, "$ret$name($param)" . ($has_body ? " {\n" : ";$comments\n");
 

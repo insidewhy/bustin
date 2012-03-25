@@ -10,11 +10,14 @@ int main() {
 
     ////////////////////////////////////////////////////////////////////////
     // reference to external puts function from c library
-    LLVMTypeRef[1] putsTypes;
+    LLVMTypeRef[1] putsTypes; // printf has same type but vararg
     putsTypes[0] = ctxt.int8Type.pointerType(0).c;
 
     auto putsFun = mod.addFunction(
         "puts", FunctionType.get(ctxt.voidType, putsTypes));
+
+    auto printfFun = mod.addFunction(
+        "printf", FunctionType.get(ctxt.voidType, putsTypes, true));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
@@ -42,10 +45,10 @@ int main() {
     idx[0] = intTy.const_(0).c;
     idx[1] = intTy.const_(0).c;
 
-    LLVMValueRef args[1];
-    args[0] = builder.GEP(glob, idx).c;
+    LLVMValueRef putsArgs[1];
+    putsArgs[0] = builder.GEP(glob, idx).c;
 
-    builder.call(putsFun, args);
+    builder.call(putsFun, putsArgs);
     builder.ret(intTy.const_(0));
 
     mod.dump();

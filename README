@@ -7,9 +7,9 @@ share/
                     forwarding functions wrapping things like strings
 gen/ (generated directory)
     core.d       -> bustin.gen.core      = generated core.d from llvm-c/Core.h
-    core_obj.d   -> bustin.gen.core_obj  = generated OO style wrapper for core
+    core_obj.d   -> bustin.gen.core_obj  = generated mixins for OO style API
 capi/
     core.d       -> bustin.capi.core  = public imports gen.core + add
-core.d           -> bustin.core       = public imports gen.core_obj + add
+core.d           -> bustin.core       = OO API, classes inherit generated mixins
 
 Also supports modules "execution_engine" and "target" as per core.
