@@ -2,62 +2,60 @@ import bustin.capi.core;
 import bustin.core;
 
 int main() {
-    auto ctxt = LLVMGetGlobalContext();
-    auto builder = LLVMCreateBuilderInContext(ctxt);
-    auto mod = LLVMModuleCreateWithNameInContext("test1", ctxt);
+    auto ctxt = new Context(LLVMGetGlobalContext());
+    auto builder = ctxt.createBuilder();
+    auto mod = new Module(LLVMModuleCreateWithNameInContext("test1", ctxt.c));
 
-    auto voidTy = LLVMVoidTypeInContext(ctxt);
-    auto intTy = LLVMInt32TypeInContext(ctxt);
+    auto voidTy = ctxt.voidType();
+    auto intTy = ctxt.int32Type();
 
     ////////////////////////////////////////////////////////////////////////
     // reference to external puts function from c library
     LLVMTypeRef[1] putsTypes;
-    putsTypes[0] = LLVMPointerType(LLVMInt8TypeInContext(ctxt), 0);
+    putsTypes[0] = ctxt.int8Type.pointerType(0).c;
 
-    auto putsFun = LLVMAddFunction(
-        mod, "puts", LLVMFunctionType(voidTy, putsTypes));
+    auto putsFun = mod.addFunction("puts", voidTy.functionType(putsTypes));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
     LLVMTypeRef[1] pumpTypes;
-    pumpTypes[0] = intTy;
+    pumpTypes[0] = intTy.c;
 
-    auto pumpFun = LLVMAddFunction(
-        mod, "pump", LLVMFunctionType(voidTy, pumpTypes));
-    auto pumpBlock = LLVMAppendBasicBlock(pumpFun);
-    LLVMPositionBuilderAtEnd(builder, pumpBlock);
-    auto v1stack = LLVMBuildAlloca(builder, intTy, "fruitbat");
-    auto v1 = LLVMConstInt(intTy, 14, false);
-    auto ret1 = LLVMBuildAdd(builder, LLVMGetParam(pumpFun, 0), v1);
-    auto ret2 = LLVMBuildAdd(builder, ret1, v1);
-    LLVMBuildStore(builder, ret2, v1stack);
+    auto pumpFun = mod.addFunction("pump", voidTy.functionType(pumpTypes));
+    auto pumpBlock = pumpFun.appendBasicBlock();
+    builder.positionBuilderAtEnd(pumpBlock);
+    auto v1stack = builder.alloca(intTy, "fruitbat");
+    auto v1 = intTy.const_(14);
+    auto ret1 = builder.add(pumpFun.getParam(0), v1);
+    auto ret2 = builder.add(ret1, v1);
+    builder.store(ret2, v1stack);
     // TODO: put it or something
-    LLVMBuildRetVoid(builder);
+    LLVMBuildRetVoid(builder.c);
 
-    auto mainFun = LLVMAddFunction(
-        mod, "main", LLVMFunctionType(intTy, null, 0));
-    auto mainBlock = LLVMAppendBasicBlock(mainFun);
-    LLVMPositionBuilderAtEnd(builder, mainBlock);
+    auto mainFun = mod.addFunction(
+        "main", intTy.functionType(null));
+    auto mainBlock = mainFun.appendBasicBlock();
+    builder.positionBuilderAtEnd(mainBlock);
 
-    auto constStr = LLVMConstString("punkso");
+    auto constStr = ctxt.constString("punkso");
 
-    auto glob = LLVMAddGlobal(mod, LLVMTypeOf(constStr), "punkStr");
-    LLVMSetInitializer(glob, constStr);
-    LLVMSetGlobalConstant(glob, 1);
-    LLVMSetLinkage(glob, LLVMLinkage.Internal);
+    auto glob = mod.addGlobal(constStr.typeOf, "punkStr");
+    glob.setInitializer(constStr);
+    glob.setConstant(true);
+    glob.setLinkage(LLVMLinkage.Internal);
 
     LLVMValueRef idx[2];
-    idx[0] = LLVMConstInt(intTy, 0, false);
-    idx[1] = LLVMConstInt(intTy, 0, false);
+    idx[0] = LLVMConstInt(intTy.c, 0);
+    idx[1] = LLVMConstInt(intTy.c, 0);
 
     LLVMValueRef args[1];
-    args[0] = LLVMBuildGEP(builder, glob, idx);
+    args[0] = builder.GEP(glob, idx).c;
 
-    LLVMBuildCall(builder, putsFun, args.ptr, args.length, "");
+    builder.call(putsFun, args, "");
 
-    LLVMBuildRet(builder, LLVMConstInt(intTy, 0, false));
+    builder.ret(intTy.const_(0));
 
-    LLVMDumpModule(mod);
+    mod.dump();
 
     return 0;
 }
