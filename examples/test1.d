@@ -13,23 +13,24 @@ int main() {
     LLVMTypeRef[1] putsTypes;
     putsTypes[0] = ctxt.int8Type.pointerType(0).c;
 
-    auto putsFun = mod.addFunction("puts", ctxt.voidType.functionType(putsTypes));
+    auto putsFun = mod.addFunction(
+        "puts", FunctionType.get(ctxt.voidType, putsTypes));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
     LLVMTypeRef[1] pumpTypes;
     pumpTypes[0] = intTy.c;
 
-    auto pumpFun = mod.addFunction("pump",
-                                   ctxt.voidType.functionType(pumpTypes));
+    auto pumpFun = mod.addFunction(
+        "pump", FunctionType.get(ctxt.voidType, pumpTypes));
     builder.positionAtEnd(pumpFun.appendBasicBlock);
     auto v1 = intTy.const_(14);
     builder.store(builder.add(builder.add(pumpFun.getParam(0), v1), v1),
                   builder.alloca(intTy, "fruitbat"));
     builder.retVoid;
 
-    builder.positionAtEnd(
-        mod.addFunction("main", intTy.functionType(null)).appendBasicBlock);
+    builder.positionAtEnd(mod.addFunction(
+        "main", FunctionType.get(intTy, null)).appendBasicBlock);
 
     auto constStr = ctxt.constString("punkso");
     auto glob = mod.addGlobal(constStr.typeOf, "punkStr");

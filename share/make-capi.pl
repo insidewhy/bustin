@@ -97,7 +97,7 @@ my %class = (
 
 # metadata about methods
 my $no_optional_name = 'BuildGlobalString|Name|AddGlobal|SetGC|AddAlias$';
-my $not_method = '[gG]enericValue';
+my $not_method = '[gG]enericValue|FunctionType';
 
 # turn c types into equivalent d types
 sub clean_types($) {
@@ -168,10 +168,7 @@ sub make_method_arguments($$) {
 
 sub make_method_return($$) {
     my ($name, $ret) = @_;
-    if ($name eq 'functionType') {
-        return 'FunctionType';
-    }
-    elsif ($name eq 'addFunction') {
+    if ($name eq 'addFunction') {
         return 'Function';
     }
     elsif ($name eq 'addGlobal') {

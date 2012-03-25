@@ -32,6 +32,11 @@ class RealType : Type {
 
 class FunctionType : Type {
     mixin FunctionTypeMixin;
+
+    static auto get(Type ret, LLVMTypeRef[] param, bool isVarArg = false) {
+        return new FunctionType(LLVMFunctionType(
+            ret.c, param.ptr, cast(uint)param.length, isVarArg));
+    }
 }
 
 class Use {
