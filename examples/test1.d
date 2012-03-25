@@ -6,7 +6,6 @@ int main() {
     auto builder = ctxt.createBuilder;
     auto mod = new Module("test1", ctxt);
 
-    auto voidTy = ctxt.voidType;
     auto intTy = ctxt.int32Type;
 
     ////////////////////////////////////////////////////////////////////////
@@ -14,24 +13,23 @@ int main() {
     LLVMTypeRef[1] putsTypes;
     putsTypes[0] = ctxt.int8Type.pointerType(0).c;
 
-    auto putsFun = mod.addFunction("puts", voidTy.functionType(putsTypes));
+    auto putsFun = mod.addFunction("puts", ctxt.voidType.functionType(putsTypes));
 
     ////////////////////////////////////////////////////////////////////////
     // pump function
     LLVMTypeRef[1] pumpTypes;
     pumpTypes[0] = intTy.c;
 
-    auto pumpFun = mod.addFunction("pump", voidTy.functionType(pumpTypes));
+    auto pumpFun = mod.addFunction("pump",
+                                   ctxt.voidType.functionType(pumpTypes));
     builder.positionAtEnd(pumpFun.appendBasicBlock);
-    auto v1stack = builder.alloca(intTy, "fruitbat");
     auto v1 = intTy.const_(14);
-    auto ret1 = builder.add(pumpFun.getParam(0), v1);
-    auto ret2 = builder.add(ret1, v1);
-    builder.store(ret2, v1stack);
+    builder.store(builder.add(builder.add(pumpFun.getParam(0), v1), v1),
+                  builder.alloca(intTy, "fruitbat"));
     builder.retVoid;
 
-    auto mainFun = mod.addFunction("main", intTy.functionType(null));
-    builder.positionAtEnd(mainFun.appendBasicBlock);
+    builder.positionAtEnd(
+        mod.addFunction("main", intTy.functionType(null)).appendBasicBlock);
 
     auto constStr = ctxt.constString("punkso");
     auto glob = mod.addGlobal(constStr.typeOf, "punkStr");
@@ -40,8 +38,8 @@ int main() {
     glob.setLinkage(Linkage.Internal);
 
     LLVMValueRef idx[2];
-    idx[0] = LLVMConstInt(intTy.c, 0);
-    idx[1] = LLVMConstInt(intTy.c, 0);
+    idx[0] = intTy.const_(0).c;
+    idx[1] = intTy.const_(0).c;
 
     LLVMValueRef args[1];
     args[0] = builder.GEP(glob, idx).c;

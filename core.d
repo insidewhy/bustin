@@ -2,11 +2,17 @@ module bustin.core;
 import bustin.gen.core;
 import bustin.gen.core_obj;
 
-class Context {
-    mixin ContextMixin;
+class Value {
+    mixin ValueMixin;
 }
 
-Context getGlobalContext() { return new Context(LLVMGetGlobalContext()); }
+class User : Value {
+    mixin UserMixin;
+}
+
+class Constant : User {
+    mixin ConstantMixin;
+}
 
 class Type {
     mixin TypeMixin;
@@ -16,40 +22,12 @@ class StructType : Type {
     mixin StructTypeMixin;
 }
 
-class Builder {
-    mixin BuilderMixin;
+class IntegerType : Type {
+    mixin IntegerTypeMixin;
 }
 
-class Value {
-    mixin ValueMixin;
-}
-
-class User : Value {
-    mixin UserMixin;
-}
-
-class PassManager {
-    mixin PassManagerMixin;
-}
-
-class Constant : User {
-    mixin ConstantMixin;
-}
-
-class GlobalValue : Constant {
-    mixin GlobalValueMixin;
-}
-
-class Function : GlobalValue {
-    mixin FunctionMixin;
-}
-
-class Instruction : User {
-    mixin InstructionMixin;
-}
-
-class CallInst : Instruction {
-    mixin CallInstMixin;
+class RealType : Type {
+    mixin RealTypeMixin;
 }
 
 class FunctionType : Type {
@@ -71,8 +49,34 @@ class BasicBlock : Value {
     };
 }
 
-class IntegerType : Type {
-    mixin IntegerTypeMixin;
+class GlobalVariable : GlobalValue {
+    mixin GlobalVariableMixin;
+}
+
+class GlobalValue : Constant {
+    mixin GlobalValueMixin;
+}
+
+class Function : GlobalValue {
+    mixin FunctionMixin;
+}
+
+class Instruction : User {
+    mixin InstructionMixin;
+}
+
+class CallInst : Instruction {
+    mixin CallInstMixin;
+}
+
+class Context {
+    mixin ContextMixin;
+}
+
+Context getGlobalContext() { return new Context(LLVMGetGlobalContext()); }
+
+class Builder {
+    mixin BuilderMixin;
 }
 
 class Module {
@@ -85,12 +89,8 @@ class Module {
     this(CType c_ = null) { c = c_; }; // it's in the mixin too but alas..
 }
 
-class GlobalVariable : GlobalValue {
-    mixin GlobalVariableMixin;
-}
-
-class RealType : Type {
-    mixin RealTypeMixin;
+class PassManager {
+    mixin PassManagerMixin;
 }
 
 alias LLVMLinkage Linkage;
