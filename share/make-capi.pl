@@ -92,7 +92,9 @@ my %class = (
         parent => 'Type',
         method_name => subout('Function'),
     },
-    PassManager => {},
+    PassManager => {
+        method_name => subout('PassManager'),
+    },
     # execution engine
     GenericValue => {
         method_name => subout('[Gg]enericValue'),
@@ -526,6 +528,14 @@ sub output_class(\%$$) {
     $clss->{'done'} = 1;
 }
 
+sub each_path($\&) {
+    my ($path, $callback) = @_;
+
+    open my $fh, "cpp -C $path |" || die "could not open file";
+    &$callback($_, $path, $fh) while (<$fh>);
+    close $fh;
+}
+
 # convert a llvm-c/${Module_name}.c file into
 #     gen/${module_name}.d
 #         wraps the capi directly with a few additonal forwarding helpers
@@ -547,8 +557,10 @@ sub gen_module($) {
     my @types;
 
     # -C keeps comments
-    open my $fh, "cpp -C $path |" || die "could not open file";
-    while (<$fh>) {
+    # open my $fh, "cpp -C $path |" || die "could not open file";
+    # while (<$fh>) {
+    my $matcher = sub {
+        my ($_, $path, $fh)  = @_;
         # ignore functions not in file being processed
         if (/^# \d+ "([^"]+)"/) {
             my $pp = $1;
@@ -562,25 +574,33 @@ sub gen_module($) {
                     while (<$fh>) { last unless m,\s*[\\|/],; }
                 }
             }
-            next;
+            return;
         }
-        next unless $on;
+        return unless $on;
 
         if (/typedef\s+struct\s+(\w+)/) {
             push @types, $1;
             s/typedef struct/alias/;
         }
         elsif (match_enum $fh, %out, $_) {
-            next;
+            return;
         }
         elsif (match_functions $fh, %out, $_) {
-            next;
+            return;
         }
         else {
             s/typedef/alias/;
         }
 
         push @{$out{'body'}}, $_;
+    };
+
+    each_path $path, &$matcher;
+
+    if ($module eq 'core') {
+        $on = 0;
+        $path = "${basedir}BitWriter.h";
+        each_path $path, &$matcher;
     }
 
     my $extra = $module eq 'core' ? '' : "import bustin.gen.core;\n";

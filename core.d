@@ -109,4 +109,10 @@ class Module {
 
 class PassManager {
     mixin PassManagerMixin;
+
+    this(Module m) {
+        c = LLVMCreateFunctionPassManagerForModule(m.c);
+    }
+
+    this(CType c_ = null) { c = c_; }; // it's in the mixin too but alas..
 }
