@@ -1,2 +1,2 @@
 module bustin.capi.core;
-public import bustin.gen.core;
+public import bustin.gen.capi.core;

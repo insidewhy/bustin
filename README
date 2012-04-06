@@ -6,8 +6,9 @@ share/
     make_capi.pl -> Reads llvm-c header files and generates D code and
                     forwarding functions wrapping things like strings
 gen/ (generated directory)
-    core.d       -> bustin.gen.core      = generated core.d from llvm-c/Core.h
-    core_obj.d   -> bustin.gen.core_obj  = generated mixins for OO style API
+    core.d   -> bustin.gen.core = generated mixins for OO style API
+    capi/ (generated subdirectory)
+        core.d       -> bustin.gen.capi.core  = generated core.d from llvm-c/Core.h
 capi/
     core.d       -> bustin.capi.core  = public imports gen.core + add
 core.d           -> bustin.core       = OO API, classes inherit generated mixins

@@ -1,7 +1,8 @@
 module bustin.target;
+
+import bustin.gen.capi.target;
 import bustin.gen.target;
-import bustin.gen.target_obj;
-import bustin.gen.core;
+import bustin.gen.capi.core;
 import bustin.core;
 
 class TargetData {

@@ -4,6 +4,7 @@
 # formatting so this doesn't have to be perfect
 
 use strict;
+use File::Path qw(make_path);
 
 my $basedir = '/usr/include/llvm-c/';
 my $outdir = './gen/';
@@ -603,14 +604,16 @@ sub gen_module($) {
         each_path $path, &$matcher;
     }
 
-    my $extra = $module eq 'core' ? '' : "import bustin.gen.core;\n";
-    $extra .= "import bustin.gen.target;\n" if $module eq 'execution_engine';
+    my $extra = $module eq 'core' ? '' : "import bustin.gen.capi.core;\n";
+    $extra .= "import bustin.gen.capi.target;\n" if $module eq 'execution_engine';
 
-    open my $wfh, '>', "$outdir/$module.d" or die "could not open file for write";
+    my $capiPath = "$outdir/capi";
+    -e $capiPath or make_path $capiPath  or die $!;
+    open my $wfh, '>', "$capiPath/$module.d" or die "could not open file for write";
 
     print $wfh <<EOF
 // this is a generated file, please do not edit it
-module bustin.gen.$module;
+module bustin.gen.capi.$module;
 $extra
 // d has a problem with "const char *" as a return type
 alias const char constchar;
@@ -630,15 +633,14 @@ EOF
     # now output wrapped classes if there are any
     return unless %{$out{'classes'}};
 
-    my $ooModule = $module . '_obj';
-    $extra =~ s/;/_obj;/; # same includes but _obj versions
-    open my $wfh, '>', "$outdir/$ooModule.d"
+    $extra =~ s/\.capi//; # same includes but non-capi versions
+    open my $wfh, '>', "$outdir/$module.d"
         or die "could not open file for write";
 
     print $wfh <<EOF
 // this is a generated file, please do not edit it
-module bustin.gen.$ooModule;
-import bustin.gen.$module;
+module bustin.gen.$module;
+import bustin.gen.capi.$module;
 $extra
 EOF
     ;

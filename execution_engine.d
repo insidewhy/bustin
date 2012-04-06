@@ -1,7 +1,8 @@
 module bustin.execution_engine;
+
+import bustin.gen.capi.execution_engine;
 import bustin.gen.execution_engine;
-import bustin.gen.execution_engine_obj;
-import bustin.gen.core;
+import bustin.gen.capi.core;
 import bustin.target;
 import bustin.core;
 

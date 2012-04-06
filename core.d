@@ -1,6 +1,7 @@
 module bustin.core;
+
+import bustin.gen.capi.core;
 import bustin.gen.core;
-import bustin.gen.core_obj;
 
 alias LLVMLinkage            Linkage;
 alias LLVMTypeKind           TypeKind;
